@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; color: #1d1f23; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    label { display: block; font-weight: 600; margin: 14px 0 6px; }
+    select, input { width: 100%; font-size: 20px; padding: 12px; border: 2px solid #c9ccd2; border-radius: 8px; }
+    input:focus { border-color: #2563eb; outline: none; }
+    .steps { display: flex; gap: 8px; }
+    .steps button { flex: 1; font-size: 18px; padding: 14px 8px; border: 2px solid #c9ccd2; border-radius: 8px; background: #fff; cursor: pointer; }
+    .steps button.on { background: #2563eb; border-color: #2563eb; color: #fff; }
+    #result { margin-top: 16px; padding: 18px; border-radius: 8px; font-size: 20px; font-weight: 600; min-height: 64px; background: #fff; }
+    #result.ok { background: #16a34a; color: #fff; }
+    #result.warning { background: #f59e0b; color: #1d1f23; }
+    #result.duplicate, #result.error { background: #dc2626; color: #fff; }
+    #count { font-size: 15px; margin-top: 10px; color: #555; }
+    #history { margin-top: 12px; font-size: 14px; color: #555; list-style: none; padding: 0; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Fulfillment Scan</h1>
+
+  <label for="staff">Who are you?</label>
+  <select id="staff"></select>
+
+  <label>Your station</label>
+  <div class="steps" id="steps"></div>
+
+  <label for="order">Scan order barcode when you FINISH the order</label>
+  <input id="order" autocomplete="off" autocapitalize="characters" placeholder="Scan or type, then Enter">
+
+  <div id="result">Loading…</div>
+  <div id="count"></div>
+  <ul id="history"></ul>
+  <p><a id="dash" href="#">Open dashboard</a></p>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const store = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    };
+    let step = null;
+    let busy = false;
+
+    function show(status, msg) {
+      $('result').className = status;
+      $('result').textContent = msg;
+      beep(status === 'ok' ? 880 : 220, status === 'ok' ? 0.12 : 0.5);
+    }
+
+    function beep(freq, secs) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        o.frequency.value = freq;
+        o.connect(ctx.destination);
+        o.start();
+        o.stop(ctx.currentTime + secs);
+      } catch (e) {}
+    }
+
+    function selectStep(id) {
+      step = id;
+      store.set('step', id);
+      document.querySelectorAll('#steps button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+      $('order').focus();
+    }
+
+    google.script.run.withSuccessHandler(cfg => {
+      $('staff').innerHTML = '<option value="">— select your name —</option>' +
+        cfg.staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      $('staff').value = store.get('staff') || '';
+      $('steps').innerHTML = cfg.steps.map(s => `<button type="button" data-id="${s.id}">${s.label}</button>`).join('');
+      document.querySelectorAll('#steps button').forEach(b => b.onclick = () => selectStep(b.dataset.id));
+      selectStep(store.get('step') || cfg.steps[0].id);
+      $('dash').href = cfg.url + '?page=dashboard';
+      $('result').className = '';
+      $('result').textContent = 'Ready';
+    }).withFailureHandler(err => show('error', err.message)).getConfig();
+
+    $('staff').onchange = () => { store.set('staff', $('staff').value); $('order').focus(); };
+
+    // Scans are queued so fast scanning never loses an order.
+    const queue = [];
+
+    function next() {
+      if (busy || !queue.length) return;
+      busy = true;
+      const job = queue.shift();
+      $('result').className = '';
+      $('result').textContent = 'Saving ' + job.order + '…' + (queue.length ? ` (${queue.length} waiting)` : '');
+      const done = () => { busy = false; $('order').focus(); next(); };
+      google.script.run
+        .withSuccessHandler(res => {
+          show(res.status, res.message);
+          if (res.count) $('count').textContent = `You have done ${res.count} orders at this station today`;
+          const li = document.createElement('li');
+          li.textContent = new Date().toLocaleTimeString() + '  ' + res.message;
+          $('history').prepend(li);
+          while ($('history').children.length > 10) $('history').lastChild.remove();
+          done();
+        })
+        .withFailureHandler(err => { show('error', job.order + ': ' + err.message); done(); })
+        .recordScan(job.staff, job.step, job.order);
+    }
+
+    $('order').addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const order = $('order').value.trim();
+      $('order').value = '';
+      if (!order) return;
+      if (!$('staff').value) return show('error', 'Select your name first');
+      queue.push({ staff: $('staff').value, step: step, order: order });
+      next();
+    });
+
+    // Keep focus on the input so a barcode scanner always types into it.
+    document.addEventListener('click', e => {
+      if (!['SELECT', 'BUTTON', 'A', 'INPUT'].includes(e.target.tagName)) $('order').focus();
+    });
+  </script>
+</body>
+</html>

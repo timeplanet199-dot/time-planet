@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; color: #1d1f23; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 16px; margin: 24px 0 8px; }
+    header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input { font-size: 16px; padding: 6px 8px; }
+    .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .tile { background: #fff; border-radius: 8px; padding: 12px 16px; min-width: 130px; }
+    .tile b { display: block; font-size: 26px; }
+    .tile span { font-size: 13px; color: #666; }
+    .wrap { overflow-x: auto; }
+    table { border-collapse: collapse; background: #fff; border-radius: 8px; width: 100%; font-size: 14px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #eef0f3; font-weight: 600; }
+    .bad { color: #dc2626; font-weight: 600; }
+    .note { font-size: 13px; color: #666; }
+    #status { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Fulfillment Dashboard</h1>
+    <input type="date" id="date">
+    <span id="status"></span>
+  </header>
+  <div id="out">Loading…</div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function load() {
+      $('status').textContent = 'Refreshing…';
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(err => { $('status').textContent = err.message; })
+        .getDashboard($('date').value || null);
+    }
+
+    function render(d) {
+      if (!$('date').value) $('date').value = d.date;
+      $('status').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      const steps = d.steps;
+      const team = d.persons.filter(p => p.total > 0);
+      const avg = team.length ? team.reduce((a, p) => a + p.perHour, 0) / team.length : 0;
+
+      let html = '<div class="tiles">' +
+        steps.map(s => `<div class="tile"><b>${d.totals[s.id]}</b><span>${esc(s.label)}</span></div>`).join('') +
+        `<div class="tile"><b>${d.completed}</b><span>Orders completed</span></div>` +
+        `<div class="tile"><b>${d.avgLeadMin} min</b><span>Avg first → last step</span></div>` +
+        `<div class="tile"><b class="${d.stuck.length ? 'bad' : ''}">${d.stuck.length}</b><span>Stuck orders</span></div>` +
+        '</div>';
+
+      html += '<h2>Per person</h2><div class="wrap"><table><tr><th>Name</th>' +
+        steps.map(s => `<th>${esc(s.label)}</th>`).join('') +
+        '<th>Total</th><th>Orders / hour</th><th>Median sec / order</th><th>First</th><th>Last</th>' +
+        `<th>Idle breaks (&gt;${d.idleMinutes} min)</th><th>Idle min</th><th>Flags</th></tr>` +
+        d.persons.map(p => {
+          const slow = p.total > 0 && p.perHour < avg * 0.75;
+          return `<tr><td>${esc(p.name)}</td>` +
+            steps.map(s => `<td>${p.steps[s.id] || 0}</td>`).join('') +
+            `<td class="${p.total === 0 ? 'bad' : ''}">${p.total}</td>` +
+            `<td class="${slow ? 'bad' : ''}">${p.perHour}</td>` +
+            `<td>${p.medianSec}</td><td>${p.first}</td><td>${p.last}</td>` +
+            `<td>${p.idleCount}</td><td class="${p.idleMin > 60 ? 'bad' : ''}">${p.idleMin}</td>` +
+            `<td class="${p.flags ? 'bad' : ''}">${p.flags}</td></tr>`;
+        }).join('') + '</table></div>' +
+        '<p class="note">Red = no scans, below 75% of the team average speed, more than 60 idle minutes, or skipped steps.</p>';
+
+      const hours = Object.keys(d.hourly).map(Number).sort((a, b) => a - b);
+      if (hours.length) {
+        html += '<h2>Scans per hour</h2><div class="wrap"><table><tr><th>Name</th>' +
+          hours.map(h => `<th>${h}:00</th>`).join('') + '</tr>' +
+          d.persons.map(p => `<tr><td>${esc(p.name)}</td>` +
+            hours.map(h => `<td>${(d.hourly[h] || {})[p.id] || ''}</td>`).join('') + '</tr>').join('') +
+          '</table></div>';
+      }
+
+      if (d.stuck.length) {
+        html += '<h2>Stuck orders (picked but not packed)</h2><div class="wrap"><table>' +
+          '<tr><th>Order</th><th>Picked at</th><th>Picked by</th><th>Waiting (min)</th></tr>' +
+          d.stuck.map(s => `<tr><td>${esc(s.order)}</td><td>${s.since}</td><td>${esc(s.by)}</td><td class="bad">${s.minutes}</td></tr>`).join('') +
+          '</table></div>';
+      }
+
+      if (d.flagged.length) {
+        html += '<h2>Skipped steps</h2><div class="wrap"><table>' +
+          '<tr><th>Order</th><th>Step</th><th>By</th><th>At</th><th>Problem</th></tr>' +
+          d.flagged.map(f => `<tr><td>${esc(f.order)}</td><td>${esc(f.step)}</td><td>${esc(f.by)}</td><td>${f.at}</td><td class="bad">${esc(f.flag)}</td></tr>`).join('') +
+          '</table></div>';
+      }
+
+      $('out').innerHTML = html;
+    }
+
+    $('date').onchange = load;
+    load();
+    setInterval(load, 60000);
+  </script>
+</body>
+</html>
