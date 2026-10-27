@@ -8,11 +8,16 @@ computer.
 
 ## 0. Read this first
 
+- **You don't need git.** The Google Drive folder **Time Planet** has a full copy
+  of every project's files, one subfolder per project, plus `CHAT_LOG.md` with
+  the full conversations. See section 5 for how to continue from Drive.
 - **The repo has no `main` branch yet.** Each chat pushed its project to its own
   branch, and each branch contains only that one project. Nothing has been merged.
 - **The chats aren't tied to this computer.** They're cloud sessions, so you can
   reopen any of them at [claude.ai/code](https://claude.ai/code) on any computer
-  where you're signed in. The links are in the table below.
+  where you're signed in. The links are in the table below. They only open for
+  the account that created them (timeplanet199@gmail.com). On another account,
+  use `CHAT_LOG.md` from Drive instead.
 - **None of the four systems has been used with real data yet.** Each one was
   tested with sample or simulated data only.
 
@@ -248,13 +253,40 @@ has not been run in a real Google Sheet yet.**
 
 ## 5. How to continue on another computer
 
-**Option A: continue in the cloud (easiest)**
-Open [claude.ai/code](https://claude.ai/code), signed in as the same account. Open
-the session for the project from the table in section 0, or start a new session
-on `timeplanet199-dot/time-planet`. Then say something like:
+**Option A: from Google Drive (no git needed)**
+
+The Drive folder **Time Planet** (in My Drive of timeplanet199@gmail.com) contains:
+```
+Time Planet/
+├── HANDOFF.md                 ← this file
+├── CHAT_LOG.md                ← the full conversations so far
+├── 1-fulfillment-tracker/     Code.gs, Index.html, Dashboard.html, README.md
+├── 2-kol-tracker/             index.html, README.md
+├── 3-streamer-monitor/        app.py, monitor.py, … + templates/, static/, tests/
+└── 4-live-commission/         Code.gs, Live.html, Dashboard.html, README.md
+```
+- **Another Google account:** first share the folder with that account (in Drive,
+  right-click the folder → Share), or download it (right-click → Download, which
+  gives you a .zip) and upload it to the other account's Drive.
+- **#1 and #4 (Apps Script):** open each file in Drive and copy its contents into
+  the Google Sheet's Apps Script editor. Follow that folder's `README.md`.
+- **#2 (KOL tracker):** download `index.html` and double-click it to open it in a
+  browser.
+- **#3 (Streamer monitor):** download the whole `3-streamer-monitor` folder and
+  follow its `README.md` (Python is needed). Two files start with a dot
+  (`.env.example` and `.gitignore`), so they may be hidden in your file browser.
+- **To continue with Claude:** start a new chat, upload `HANDOFF.md`,
+  `CHAT_LOG.md` and the project folder you're working on, then say something
+  like *"Read HANDOFF.md and continue project #3."* In a Claude Code session on
+  that computer, put the files in the working folder instead of uploading them.
+
+**Option B: continue in the cloud (same account only)**
+Open [claude.ai/code](https://claude.ai/code), signed in as timeplanet199@gmail.com.
+Open the session for the project from the table in section 0, or start a new
+session on `timeplanet199-dot/time-planet`. Then say something like:
 *"Read HANDOFF.md on branch claude/ecstatic-bardeen-ff6enj and continue project #3."*
 
-**Option B: work locally**
+**Option C: work locally with git**
 ```bash
 git clone https://github.com/timeplanet199-dot/time-planet.git
 cd time-planet
