@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Performance report</h1>
+<form class="row card">
+  <label>From <input type="date" name="from" value="{{ start }}"></label>
+  <label>To <input type="date" name="to" value="{{ end }}"></label>
+  <button>Show</button>
+  <a class="btn" href="?from={{ start }}&to={{ end }}&format=csv">Download CSV</a>
+</form>
+<table>
+  <thead><tr><th>Streamer</th><th>Shifts</th><th>On time</th><th>Late</th><th>Missed</th><th>Went offline</th><th>Ended early</th><th>Scheduled</th><th>Live</th><th>Attendance</th><th>Punctuality</th></tr></thead>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.name }}</td><td>{{ r.shifts }}</td><td>{{ r.on_time }}</td><td>{{ r.late }}</td><td>{{ r.missed }}</td>
+    <td>{{ r.drops }}</td><td>{{ r.ended_early }}</td><td>{{ r.scheduled|duration }}</td><td>{{ r.live|duration }}</td>
+    <td><span class="pct {{ 'good' if r.attendance >= 90 else 'ok' if r.attendance >= 70 else 'bad' }}">{{ r.attendance }}%</span></td>
+    <td><span class="pct {{ 'good' if r.punctuality >= 90 else 'ok' if r.punctuality >= 70 else 'bad' }}">{{ r.punctuality }}%</span></td>
+  </tr>
+  {% else %}<tr><td colspan="11" class="muted">No finished shifts in this range.</td></tr>{% endfor %}
+</table>
+<p class="muted">Attendance = live time ÷ scheduled time. Punctuality = shifts started within {{ config.GRACE_MINUTES }} min of start. Worst first.</p>
+{% endblock %}

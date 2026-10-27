@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_status.html" import badge %}
+{% block content %}
+<h1>{{ shift.name }} · {{ shift.start_at|dayname }} {{ shift.start_at|hm }}–{{ shift.end_at|hm }}</h1>
+<p>{{ badge(shift) }} · {{ shift.platform }} {{ shift.handle }} · first live {{ shift.first_live_at|hm }} · last live {{ shift.last_live_at|hm }}
+ · live {{ shift.live_seconds|duration }} · went offline {{ shift.drops }}×</p>
+<h2>Alerts</h2>
+{% for a in alerts %}<div class="alert sev-{{ a.severity }}"><span>{{ a.created_at|hm }}</span> {{ a.message }}</div>
+{% else %}<p class="muted">None.</p>{% endfor %}
+<h2>Check log</h2>
+<div class="timeline">
+  {% for c in checks %}<i class="{{ 'on' if c.is_live == 1 else 'off' if c.is_live == 0 else 'unk' }}" title="{{ c.checked_at|hm }} {{ c.detail }}"></i>{% endfor %}
+</div>
+<table>
+  <thead><tr><th>Time</th><th>Live?</th><th>Viewers</th><th>Detail</th></tr></thead>
+  {% for c in checks|reverse %}
+  <tr><td>{{ c.checked_at|hm }}</td><td>{{ {1: '✅ live', 0: '❌ offline'}.get(c.is_live, '❔ unknown') }}</td><td>{{ c.viewers or '—' }}</td><td class="muted">{{ c.detail }}</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

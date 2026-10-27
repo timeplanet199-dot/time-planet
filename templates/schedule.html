@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_status.html" import badge %}
+{% block content %}
+<h1>Timetable</h1>
+{% if not streamers %}<p>Add a streamer first on the <a href="{{ url_for('streamers') }}">Streamers</a> page.</p>{% else %}
+<div class="two">
+  <form method="post" action="{{ url_for('add_slot') }}" class="card">
+    <h3>Weekly repeating slot</h3>
+    <label>Streamer <select name="streamer_id">{% for s in streamers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label>
+    <div class="days">{% for d in WEEKDAYS %}<label><input type="checkbox" name="weekday" value="{{ loop.index0 }}"> {{ d }}</label>{% endfor %}</div>
+    <label>From <input type="time" name="start_time" required></label>
+    <label>To <input type="time" name="end_time" required></label>
+    <button>Add to every week</button>
+  </form>
+  <form method="post" action="{{ url_for('add_shift') }}" class="card">
+    <h3>One-off shift</h3>
+    <label>Streamer <select name="streamer_id">{% for s in streamers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label>
+    <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+    <label>From <input type="time" name="start_time" required></label>
+    <label>To <input type="time" name="end_time" required></label>
+    <button>Add shift</button>
+  </form>
+</div>
+{% endif %}
+
+<h2>Weekly plan</h2>
+<div class="week">
+  {% for i in range(7) %}
+  <div class="day"><h4>{{ WEEKDAYS[i] }}</h4>
+    {% for s in by_day[i] %}
+      <div class="slot p-{{ s.platform }}">{{ s.start_time }}–{{ s.end_time }}<br><b>{{ s.name }}</b>
+        <form method="post" action="{{ url_for('delete_slot', slot_id=s.id) }}" onsubmit="return confirm('Remove this weekly slot and its future shifts?')"><button class="x" title="remove">×</button></form>
+      </div>
+    {% else %}<p class="muted">—</p>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Next 7 days</h2>
+<table>
+  <thead><tr><th>Day</th><th>Time</th><th>Streamer</th><th>Status</th><th></th></tr></thead>
+  {% for sh in upcoming %}
+  <tr><td>{{ sh.start_at|dayname }}</td><td>{{ sh.start_at|hm }}–{{ sh.end_at|hm }}</td><td>{{ sh.name }}</td><td>{{ badge(sh) }}</td>
+    <td>{% if sh.status == 'upcoming' %}<form method="post" action="{{ url_for('cancel_shift', shift_id=sh.id) }}" class="inline"><button class="ghost">Cancel</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">Nothing scheduled.</td></tr>{% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_status.html" import badge %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+{% block content %}
+<header class="row">
+  <h1>{{ day.strftime('%A %d %b %Y') }}</h1>
+  <div>
+    <a class="btn" href="?day={{ prev_day }}">‹</a>
+    <a class="btn" href="{{ url_for('dashboard') }}">Today</a>
+    <a class="btn" href="?day={{ next_day }}">›</a>
+    <form method="post" action="{{ url_for('check_now') }}" class="inline"><button>Check now</button></form>
+  </div>
+</header>
+
+<section class="tiles">
+  {% for key in ['live', 'late', 'dropped', 'no_show', 'missed', 'upcoming', 'completed'] %}
+  <div class="tile s-{{ key }}"><b>{{ counts.get(key, 0) }}</b><span>{{ STATUS_LABELS[key] }}</span></div>
+  {% endfor %}
+</section>
+
+<section>
+  <header class="row">
+    <h2>Needs attention ({{ alerts|length }})</h2>
+    {% if alerts %}<form method="post" action="{{ url_for('ack_all') }}"><button class="ghost">Mark all seen</button></form>{% endif %}
+  </header>
+  {% for a in alerts %}
+    <div class="alert sev-{{ a.severity }}">
+      <span>{{ a.created_at|hm }}</span> {{ a.message }}
+      <form method="post" action="{{ url_for('ack_alert', alert_id=a.id) }}" class="inline"><button class="ghost">Seen</button></form>
+    </div>
+  {% else %}
+    <p class="muted">All good — nothing needs your attention. 🎉</p>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Shifts</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Streamer</th><th>Platform</th><th>Status</th><th>Went live</th><th>Live time</th><th>Peak viewers</th><th></th></tr></thead>
+    <tbody>
+    {% for sh in shifts %}
+      <tr>
+        <td>{{ sh.start_at|hm }}–{{ sh.end_at|hm }}</td>
+        <td>{{ sh.name }}</td>
+        <td>{{ sh.platform }} <span class="muted">{{ sh.handle }}</span></td>
+        <td>{{ badge(sh) }}</td>
+        <td>{{ sh.first_live_at|hm }}</td>
+        <td>{{ sh.live_seconds|duration }}</td>
+        <td>{{ sh.peak_viewers or '—' }}</td>
+        <td><a href="{{ url_for('shift_detail', shift_id=sh.id) }}">details</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="muted">No shifts this day. Add some in the <a href="{{ url_for('schedule') }}">Timetable</a>.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Page refreshes every minute. Monitor checks every {{ config.CHECK_INTERVAL_SECONDS }}s.</p>
+</section>
+{% endblock %}

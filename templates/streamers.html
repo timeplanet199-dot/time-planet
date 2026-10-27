@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Streamers</h1>
+<form method="post" class="card grid">
+  <label>Name <input name="name" required></label>
+  <label>Platform <select name="platform">{% for p in platforms %}<option>{{ p }}</option>{% endfor %}</select></label>
+  <label>Handle / channel <input name="handle" placeholder="@username or UC… channel id"></label>
+  <label>Contact <input name="contact" placeholder="phone / Telegram (for you)"></label>
+  <button>Add streamer</button>
+</form>
+<p class="muted">Each streamer gets a personal link to see their own timetable (and, for the <b>manual</b> platform, tap “I’m live”). Send it to them once.</p>
+<table>
+  <thead><tr><th>Name</th><th>Platform</th><th>Handle</th><th>Contact</th><th>Personal link</th><th></th></tr></thead>
+  {% for s in streamers %}
+  <tr class="{{ '' if s.active else 'inactive' }}">
+    <form method="post" action="{{ url_for('edit_streamer', sid=s.id) }}" id="e{{ s.id }}"></form>
+    <td><input form="e{{ s.id }}" name="name" value="{{ s.name }}"></td>
+    <td><select form="e{{ s.id }}" name="platform">{% for p in platforms %}<option {{ 'selected' if p == s.platform }}>{{ p }}</option>{% endfor %}</select></td>
+    <td><input form="e{{ s.id }}" name="handle" value="{{ s.handle }}"></td>
+    <td><input form="e{{ s.id }}" name="contact" value="{{ s.contact }}"></td>
+    <td><a href="{{ url_for('checkin', token=s.checkin_token) }}"><code>{{ config.PUBLIC_URL }}/c/{{ s.checkin_token }}</code></a></td>
+    <td class="actions">
+      <button form="e{{ s.id }}">Save</button>
+      <form method="post" action="{{ url_for('test_streamer', sid=s.id) }}" class="inline"><button class="ghost">Test live check</button></form>
+      <form method="post" action="{{ url_for('toggle_streamer', sid=s.id) }}" class="inline"><button class="ghost">{{ 'Deactivate' if s.active else 'Activate' }}</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">No streamers yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

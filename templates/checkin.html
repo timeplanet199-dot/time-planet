@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block nav %}{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Hi {{ s.name }} 👋</h1>
+{% if s.platform == 'manual' %}
+  <form method="post" class="card center">
+    {% if manual_live %}
+      <p class="big">🔴 You are marked LIVE</p>
+      <button name="action" value="stop" class="ghost">I've stopped streaming</button>
+    {% else %}
+      <p class="big">You are not marked live</p>
+      <button name="action" value="start" class="huge">I'm LIVE now</button>
+    {% endif %}
+  </form>
+{% else %}
+  <p class="muted">Your {{ s.platform }} channel <b>{{ s.handle }}</b> is checked automatically — just go live on time.</p>
+{% endif %}
+<h2>Your upcoming shifts</h2>
+<table>
+  {% for sh in shifts %}
+    <tr><td>{{ sh.start_at|dayname }}</td><td>{{ sh.start_at|hm }}–{{ sh.end_at|hm }}</td><td>{{ STATUS_LABELS.get(sh.status) }}</td></tr>
+  {% else %}<tr><td class="muted">No shifts scheduled.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

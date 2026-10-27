@@ -1,0 +1,4 @@
+{% macro badge(sh) -%}
+<span class="badge s-{{ sh.status }}">{{ STATUS_LABELS.get(sh.status, sh.status) }}</span>
+{%- for f in sh.flags.split(',') if f %} <span class="badge flag">{{ f.replace('_', ' ') }}</span>{% endfor %}
+{%- endmacro %}
