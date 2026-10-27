@@ -172,7 +172,7 @@ been run on demo data.
 
 **Setup summary:**
 ```bash
-git checkout claude/vibrant-tesla-arxlvg
+cd 3-streamer-monitor       # Drive copy; with git: git checkout claude/vibrant-tesla-arxlvg
 pip install -r requirements.txt
 cp .env.example .env        # set TP_ADMIN_PASSWORD, TP_SECRET_KEY, Telegram bot token + chat id
 set -a; . ./.env; set +a
