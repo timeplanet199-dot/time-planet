@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; color: #1d1f23; max-width: 520px; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    label { display: block; font-weight: 600; margin: 14px 0 6px; }
+    select { width: 100%; font-size: 20px; padding: 12px; border: 2px solid #c9ccd2; border-radius: 8px; }
+    .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .opts button { flex: 1; font-size: 18px; padding: 14px 8px; border: 2px solid #c9ccd2; border-radius: 8px; background: #fff; cursor: pointer; }
+    .opts button.on { background: #2563eb; border-color: #2563eb; color: #fff; }
+    #big { width: 100%; margin-top: 20px; font-size: 28px; font-weight: 700; padding: 26px; border: 0; border-radius: 12px; color: #fff; background: #16a34a; cursor: pointer; }
+    #big.live { background: #dc2626; }
+    #big:disabled { opacity: .5; }
+    #timer { font-size: 18px; margin-top: 12px; font-weight: 600; min-height: 24px; }
+    #msg { margin-top: 12px; padding: 14px; border-radius: 8px; background: #fff; min-height: 50px; }
+    #now { font-size: 14px; color: #555; margin-top: 16px; }
+    .note { font-size: 13px; color: #666; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Live Session</h1>
+
+  <label for="host">Who are you?</label>
+  <select id="host"></select>
+
+  <label>Platform</label>
+  <div class="opts" id="platforms"></div>
+
+  <button id="big" type="button" disabled>Loading…</button>
+  <div id="timer"></div>
+  <div id="msg">Press GO LIVE the moment your stream starts and END LIVE as soon as it ends.
+    Orders are matched to you only during this time.</div>
+  <div id="now"></div>
+  <p class="note"><a id="dash" href="#">Dashboard</a> (owner)</p>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const store = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    };
+    let state = null;
+    let platform = null;
+    let offset = 0;   // server clock − device clock
+    let busy = false;
+
+    function mine() {
+      return state && state.live.find(s => s.hostId === $('host').value);
+    }
+
+    function render(s) {
+      state = s;
+      offset = s.now - Date.now();
+      if (!$('host').options.length) {
+        $('host').innerHTML = '<option value="">— select your name —</option>' +
+          s.hosts.map(h => `<option value="${esc(h.id)}">${esc(h.name)}</option>`).join('');
+        $('host').value = store.get('host') || '';
+        $('platforms').innerHTML = s.platforms.map(p => `<button type="button" data-p="${esc(p)}">${esc(p)}</button>`).join('');
+        document.querySelectorAll('#platforms button').forEach(b => b.onclick = () => pick(b.dataset.p));
+        pick(store.get('platform') || s.platforms[0]);
+        if (s.url) $('dash').href = s.url + '?page=dashboard';
+      }
+      const m = mine();
+      if (m) pick(m.platform, true);
+      $('big').disabled = false;
+      $('big').className = m ? 'live' : '';
+      $('big').textContent = m ? 'END LIVE' : 'GO LIVE';
+      $('now').innerHTML = s.live.length
+        ? 'Live now: ' + s.live.map(l => `<b>${esc(l.hostName)}</b> (${esc(l.platform)}, since ${new Date(l.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`).join(', ')
+        : 'Nobody is live right now.';
+      tick();
+    }
+
+    function pick(p, force) {
+      if (mine() && !force) return;  // can't switch platform while live
+      platform = p;
+      store.set('platform', p);
+      document.querySelectorAll('#platforms button').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+    }
+
+    function tick() {
+      const m = mine();
+      if (!m) { $('timer').textContent = ''; return; }
+      const sec = Math.max(0, Math.floor((Date.now() + offset - m.start) / 1000));
+      const pad = n => String(n).padStart(2, '0');
+      $('timer').textContent = `● LIVE on ${m.platform} for ${Math.floor(sec / 3600)}:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}`;
+    }
+
+    function load() {
+      google.script.run.withSuccessHandler(render)
+        .withFailureHandler(err => { $('msg').textContent = err.message; }).getLiveState();
+    }
+
+    $('host').onchange = () => { store.set('host', $('host').value); render(state); };
+
+    $('big').onclick = () => {
+      if (busy) return;
+      const host = $('host').value;
+      if (!host) { $('msg').textContent = 'Select your name first'; return; }
+      const live = !!mine();
+      if (live && !confirm('End your live session now?')) return;
+      busy = true;
+      $('big').disabled = true;
+      $('big').textContent = 'Saving…';
+      const done = res => { busy = false; $('msg').textContent = res.message; render(res.state); };
+      const fail = err => { busy = false; $('msg').textContent = err.message; render(state); };
+      const run = google.script.run.withSuccessHandler(done).withFailureHandler(fail);
+      if (live) run.endLive(host); else run.goLive(host, platform);
+    };
+
+    load();
+    setInterval(tick, 1000);
+    setInterval(() => { if (!busy) load(); }, 60000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f5f7; color: #1d1f23; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 16px; margin: 24px 0 8px; }
+    header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input, select { font-size: 16px; padding: 6px 8px; }
+    .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .tile { background: #fff; border-radius: 8px; padding: 12px 16px; min-width: 140px; }
+    .tile b { display: block; font-size: 24px; }
+    .tile span { font-size: 13px; color: #666; }
+    .wrap { overflow-x: auto; }
+    table { border-collapse: collapse; background: #fff; border-radius: 8px; width: 100%; font-size: 14px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
+    th:first-child, td:first-child, td.l, th.l { text-align: left; }
+    th { background: #eef0f3; font-weight: 600; }
+    tr.click { cursor: pointer; }
+    tr.click:hover, tr.sel { background: #eef4ff; }
+    .bad { color: #dc2626; font-weight: 600; }
+    .good { color: #16a34a; font-weight: 600; }
+    .note { font-size: 13px; color: #666; }
+    #status { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Live Commission</h1>
+    <input type="month" id="month">
+    <span id="status"></span>
+  </header>
+  <div id="out">Loading…</div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const money = n => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const store = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    };
+    let data = null;
+    let selected = null;
+
+    function load() {
+      $('status').textContent = 'Refreshing…';
+      google.script.run
+        .withSuccessHandler(d => { data = d; render(); })
+        .withFailureHandler(err => {
+          if (/PIN required/.test(err.message)) {
+            const pin = prompt('Dashboard PIN');
+            if (pin !== null) { store.set('pin', pin); load(); }
+            return;
+          }
+          $('status').textContent = err.message;
+        })
+        .getDashboard($('month').value || null, store.get('pin') || '');
+    }
+
+    function render() {
+      const d = data;
+      if (!$('month').value) $('month').value = d.month;
+      $('status').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      const sum = k => d.hosts.reduce((a, h) => a + h[k], 0);
+
+      let html = '<div class="tiles">' +
+        `<div class="tile"><b>${sum('hours').toFixed(1)}</b><span>Live hours</span></div>` +
+        `<div class="tile"><b>${sum('orders')}</b><span>Orders from live</span></div>` +
+        `<div class="tile"><b>${money(sum('sales'))}</b><span>Live sales</span></div>` +
+        `<div class="tile"><b class="good">${money(sum('payable'))}</b><span>Commission payable now</span></div>` +
+        `<div class="tile"><b>${money(sum('pendingComm'))}</b><span>Waiting for completion</span></div>` +
+        `<div class="tile"><b>${money(sum('paid'))}</b><span>Already paid</span></div>` +
+        `<div class="tile"><b class="${sum('cancelled') ? 'bad' : ''}">${sum('cancelled')}</b><span>Cancelled / returned</span></div>` +
+        '</div>';
+
+      if (d.clawbacks.length) {
+        html += `<p class="bad">${d.clawbacks.length} paid orders were cancelled afterwards and will be deducted in the next payout: ${d.clawbacks.map(esc).join(', ')}</p>`;
+      }
+
+      html += '<h2>Per host <span class="note">(click a row to see the orders)</span></h2><div class="wrap"><table>' +
+        '<tr><th>Host</th><th>Sessions</th><th>Hours</th><th>Orders</th><th>Sales</th><th>Sales / hour</th>' +
+        '<th>Completed</th><th>Payable now</th><th>Waiting</th><th>Waiting comm.</th><th>Paid</th><th>Cancelled</th><th>Cancel %</th></tr>' +
+        d.hosts.map(h => `<tr class="click ${selected === h.id ? 'sel' : ''}" data-id="${esc(h.id)}"><td>${esc(h.name)}</td>` +
+          `<td>${h.sessions}</td><td>${h.hours.toFixed(1)}</td><td>${h.orders}</td><td>${money(h.sales)}</td>` +
+          `<td>${h.hours ? money(h.sales / h.hours) : ''}</td>` +
+          `<td>${h.completed}</td><td class="good">${money(h.payable)}</td><td>${h.pending}</td><td>${money(h.pendingComm)}</td>` +
+          `<td>${money(h.paid)}</td><td>${h.cancelled}</td><td class="${h.cancelRate >= 20 ? 'bad' : ''}">${h.cancelRate}%</td></tr>`).join('') +
+        '</table></div>' +
+        `<p class="note">Payable = completed and not yet paid. Waiting = matched but not completed yet; paid only once completed, never if cancelled. ` +
+        `Orders that did not come from a live: ${d.notLive}. Red cancel % = 20% or more.</p>`;
+
+      if (selected) {
+        const list = d.orders.filter(o => o.hostId === selected);
+        const name = (d.hosts.find(h => h.id === selected) || {}).name || selected;
+        html += `<h2>Orders of ${esc(name)} (${list.length})</h2><div class="wrap"><table>` +
+          '<tr><th>Order</th><th class="l">Platform</th><th class="l">Placed</th><th>Amount</th><th class="l">Status</th><th class="l">State</th><th>Commission</th><th class="l">Matched by</th><th class="l">Payout</th></tr>' +
+          list.map(o => `<tr><td>${esc(o.order)}</td><td class="l">${esc(o.platform)}</td><td class="l">${esc(o.at)}</td><td>${money(o.amount)}</td>` +
+            `<td class="l">${esc(o.status)}</td><td class="l ${o.state === 'CANCELLED' ? 'bad' : o.state === 'COMPLETED' ? 'good' : ''}">${o.state}</td>` +
+            `<td>${money(o.commission)}</td><td class="l">${esc(o.matchedBy)}</td><td class="l">${esc(o.payoutId)}</td></tr>`).join('') +
+          '</table></div>';
+      }
+
+      html += '<h2>Live sessions <span class="note">(compare orders with the platform\'s own live stats)</span></h2><div class="wrap"><table>' +
+        '<tr><th>Start</th><th>End</th><th class="l">Host</th><th class="l">Platform</th><th>Hours</th><th>Orders</th><th>Sales</th><th>Cancelled</th><th class="l">Check</th></tr>' +
+        d.sessions.map(s => `<tr><td>${esc(s.start)}</td><td>${esc(s.end)}</td><td class="l">${esc(s.host)}</td><td class="l">${esc(s.platform)}</td>` +
+          `<td>${s.hours.toFixed(2)}</td><td>${s.orders}</td><td>${money(s.sales)}</td><td>${s.cancelled}</td>` +
+          `<td class="l bad">${esc(s.flag)}</td></tr>`).join('') +
+        '</table></div>' +
+        `<p class="note">Orders up to ${d.graceMinutes} min after END LIVE still count. Orders only appear here after the export is imported.</p>`;
+
+      $('out').innerHTML = html;
+      document.querySelectorAll('tr.click').forEach(tr => tr.onclick = () => {
+        selected = selected === tr.dataset.id ? null : tr.dataset.id;
+        render();
+      });
+    }
+
+    $('month').onchange = () => { selected = null; load(); };
+    load();
+    setInterval(load, 5 * 60000);
+  </script>
+</body>
+</html>
