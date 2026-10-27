@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KOL Tracker</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec;
+  --accent: #4f46e5; --accent-soft: #eef0ff; --danger: #d33c3c; --warn: #c27c0e; --ok: #1f8a4c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12141a; --panel: #1b1e26; --text: #e6e8ee; --muted: #9aa1b2; --line: #2c303b;
+    --accent: #8b85ff; --accent-soft: #262a45; --danger: #ff6b6b; --warn: #f0b04a; --ok: #4cc983;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+button, .btn { font: inherit; padding: 6px 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 6px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.danger { color: var(--danger); }
+button.small { padding: 2px 8px; font-size: 12px; }
+input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); width: 100%; }
+textarea { min-height: 70px; resize: vertical; }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.grid { display: grid; gap: 14px; }
+.stats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 16px; }
+.stat .num { font-size: 26px; font-weight: 650; }
+.stat .lbl { color: var(--muted); font-size: 12px; }
+.two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.form { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.form .full { grid-column: 1 / -1; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+.toolbar input, .toolbar select { width: auto; min-width: 150px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-soft); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.pill.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.pill.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+.pill.bad { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.pill.grey { background: var(--line); color: var(--muted); }
+.muted { color: var(--muted); }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; min-width: 80px; }
+.bar > span { display: block; height: 100%; background: var(--ok); }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 300px; }
+.col h3 { font-size: 13px; margin: 0 0 8px; display: flex; justify-content: space-between; }
+.col.over { outline: 2px dashed var(--accent); }
+.kcard { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; cursor: grab; }
+.kcard b { display: block; }
+.list-item { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.list-item:last-child { border-bottom: 0; }
+dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(980px, 96vw); max-height: 92vh; background: var(--panel); color: var(--text); }
+dialog::backdrop { background: rgb(0 0 0 / .45); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 2; }
+.dlg-head h2 { margin: 0; font-size: 17px; }
+.dlg-body { padding: 16px 18px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; }
+.tabs button.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+.timeline .entry { border-left: 3px solid var(--accent); padding: 4px 0 10px 12px; margin-bottom: 8px; }
+.timeline .meta { font-size: 12px; color: var(--muted); }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 12px; }
+.empty { color: var(--muted); padding: 16px; text-align: center; }
+.hidden { display: none !important; }
+@media (max-width: 600px) { main { padding: 12px; } header { padding: 12px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>KOL Tracker</h1>
+  <nav id="nav">
+    <button data-view="dashboard" class="active">Dashboard</button>
+    <button data-view="kols">KOLs</button>
+    <button data-view="board">Pipeline</button>
+    <button data-view="content">Content</button>
+    <button data-view="followups">Follow-ups</button>
+  </nav>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="primary" id="addKol">+ New KOL</button>
+    <button id="exportJson" title="Back up all data to a JSON file">Export</button>
+    <button id="importJson" title="Restore data from a JSON backup">Import</button>
+    <button id="exportCsv" title="Download KOL & content lists as CSV">CSV</button>
+    <input type="file" id="importFile" accept=".json" class="hidden">
+  </div>
+</header>
+
+<main>
+  <section id="view-dashboard"></section>
+  <section id="view-kols" class="hidden"></section>
+  <section id="view-board" class="hidden"></section>
+  <section id="view-content" class="hidden"></section>
+  <section id="view-followups" class="hidden"></section>
+</main>
+
+<dialog id="dlg"></dialog>
+
+<script>
+// ---------- Config ----------
+const STAGES = ['Prospect', 'Contacted', 'Negotiating', 'Contracted', 'In Production', 'Content Review', 'Published', 'Completed', 'Dropped'];
+const PLATFORMS = ['Instagram', 'TikTok', 'YouTube', 'Facebook', 'X / Twitter', 'Xiaohongshu', 'LinkedIn', 'Blog', 'Other'];
+const CHANNELS = ['Call', 'Meeting', 'WhatsApp', 'Email', 'DM', 'WeChat', 'Other'];
+const CONTENT_TYPES = ['Feed Post', 'Reel / Short', 'Story', 'Video', 'Live', 'Carousel', 'Article / Blog', 'Event Appearance', 'Other'];
+const CONTENT_STATUS = ['Not Started', 'Brief Sent', 'Draft Submitted', 'Revision', 'Approved', 'Published'];
+const PAYMENT_STATUS = ['Unpaid', 'Deposit Paid', 'Fully Paid', 'Barter / Free'];
+const STORE_KEY = 'kol-tracker-v1';
+
+// ---------- Storage ----------
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { console.warn('Could not read saved data', e); }
+  return seed();
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+  catch (e) { alert('Could not save to this browser. Use Export to back up your data.'); }
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const today = () => new Date().toISOString().slice(0, 10);
+const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+let db = load();
+
+function seed() {
+  const k1 = uid(), k2 = uid(), k3 = uid();
+  return {
+    kols: [
+      { id: k1, name: 'Sample: Amelia Tan', handle: '@ameliaeats', platform: 'Instagram', followers: 185000, niche: 'Food & Lifestyle', email: 'amelia@example.com', phone: '', manager: 'Self-managed', campaign: 'Q4 Launch', owner: 'Me', fee: 3500, currency: 'USD', payment: 'Deposit Paid', stage: 'In Production', startDate: addDays(-14), notes: 'Prefers WhatsApp. Very responsive.' },
+      { id: k2, name: 'Sample: Ryan Lim', handle: '@ryantechs', platform: 'YouTube', followers: 420000, niche: 'Tech Reviews', email: 'ryan@example.com', phone: '', manager: 'Bright Talent Agency', campaign: 'Q4 Launch', owner: 'Me', fee: 8000, currency: 'USD', payment: 'Unpaid', stage: 'Negotiating', startDate: addDays(-5), notes: '' },
+      { id: k3, name: 'Sample: Mei Ling', handle: '@meiling.style', platform: 'TikTok', followers: 96000, niche: 'Fashion', email: '', phone: '', manager: '', campaign: 'Holiday Gifting', owner: 'Me', fee: 0, currency: 'USD', payment: 'Barter / Free', stage: 'Published', startDate: addDays(-30), notes: '' }
+    ],
+    discussions: [
+      { id: uid(), kolId: k1, date: addDays(-14), channel: 'Call', summary: 'Intro call. Shared campaign brief and timeline.', agreed: '1 Reel + 3 Stories, USD 3,500, 50% deposit.', nextAction: 'Send contract', nextDue: addDays(-12), done: true },
+      { id: uid(), kolId: k1, date: addDays(-3), channel: 'WhatsApp', summary: 'Reviewed Reel draft v1.', agreed: 'Needs product close-up and discount code in caption.', nextAction: 'Receive revised draft', nextDue: addDays(2), done: false },
+      { id: uid(), kolId: k2, date: addDays(-5), channel: 'Email', summary: 'Agency sent rate card.', agreed: 'Asking USD 9,000 for a dedicated video; we countered 8,000.', nextAction: 'Follow up on counter-offer', nextDue: addDays(-1), done: false }
+    ],
+    content: [
+      { id: uid(), kolId: k1, type: 'Reel / Short', platform: 'Instagram', qty: 1, dueDate: addDays(5), status: 'Revision', draftLink: '', liveLink: '', publishDate: '', views: '', likes: '', comments: '', shares: '', notes: 'Add discount code KOL10' },
+      { id: uid(), kolId: k1, type: 'Story', platform: 'Instagram', qty: 3, dueDate: addDays(7), status: 'Brief Sent', draftLink: '', liveLink: '', publishDate: '', views: '', likes: '', comments: '', shares: '', notes: '' },
+      { id: uid(), kolId: k3, type: 'Video', platform: 'TikTok', qty: 1, dueDate: addDays(-10), status: 'Published', draftLink: '', liveLink: 'https://tiktok.com/', publishDate: addDays(-11), views: 54000, likes: 4100, comments: 230, shares: 310, notes: '' }
+    ]
+  };
+}
+
+// ---------- Helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtNum = n => (n === '' || n == null || isNaN(n)) ? '—' : Number(n).toLocaleString();
+const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const kolById = id => db.kols.find(k => k.id === id);
+const opts = (list, val) => list.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('');
+const isOverdue = d => d && d < today();
+
+function stagePill(s) {
+  const cls = s === 'Completed' || s === 'Published' ? 'ok' : s === 'Dropped' ? 'grey' : s === 'Prospect' ? 'grey' : '';
+  return `<span class="pill ${cls}">${esc(s)}</span>`;
+}
+function contentPill(c) {
+  const s = c.status;
+  let cls = s === 'Published' ? 'ok' : s === 'Approved' ? 'ok' : s === 'Revision' ? 'warn' : s === 'Not Started' ? 'grey' : '';
+  if (s !== 'Published' && isOverdue(c.dueDate)) cls = 'bad';
+  return `<span class="pill ${cls}">${esc(s)}${s !== 'Published' && isOverdue(c.dueDate) ? ' · overdue' : ''}</span>`;
+}
+function fulfilment(kolId) {
+  const items = db.content.filter(c => c.kolId === kolId);
+  const total = items.reduce((a, c) => a + (+c.qty || 1), 0);
+  const done = items.filter(c => c.status === 'Published').reduce((a, c) => a + (+c.qty || 1), 0);
+  return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+}
+function bar(pct) { return `<div class="bar" title="${pct}%"><span style="width:${pct}%"></span></div>`; }
+function lastContact(kolId) {
+  const d = db.discussions.filter(x => x.kolId === kolId).map(x => x.date).sort().pop();
+  return d || '';
+}
+function openActions() {
+  return db.discussions.filter(d => d.nextAction && !d.done).sort((a, b) => (a.nextDue || '9999').localeCompare(b.nextDue || '9999'));
+}
+
+// ---------- Navigation ----------
+let currentView = 'dashboard';
+const filters = { q: '', stage: '', campaign: '', platform: '', cstatus: '' };
+$('#nav').addEventListener('click', e => {
+  const v = e.target.dataset.view; if (!v) return;
+  currentView = v;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hidden', s.id !== 'view-' + v));
+  render();
+});
+function render() {
+  ({ dashboard: renderDashboard, kols: renderKols, board: renderBoard, content: renderContent, followups: renderFollowups })[currentView]();
+}
+
+// ---------- Dashboard ----------
+function renderDashboard() {
+  const active = db.kols.filter(k => !['Completed', 'Dropped'].includes(k.stage));
+  const totalDeliv = db.content.reduce((a, c) => a + (+c.qty || 1), 0);
+  const published = db.content.filter(c => c.status === 'Published').reduce((a, c) => a + (+c.qty || 1), 0);
+  const overdueContent = db.content.filter(c => c.status !== 'Published' && isOverdue(c.dueDate));
+  const actions = openActions();
+  const overdueActions = actions.filter(a => isOverdue(a.nextDue));
+  const budget = db.kols.filter(k => k.stage !== 'Dropped').reduce((a, k) => a + (+k.fee || 0), 0);
+  const views = db.content.reduce((a, c) => a + (+c.views || 0), 0);
+
+  const byStage = STAGES.map(s => ({ s, n: db.kols.filter(k => k.stage === s).length }));
+  const maxN = Math.max(1, ...byStage.map(x => x.n));
+
+  const upcoming = db.content.filter(c => c.status !== 'Published' && c.dueDate)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 8);
+
+  $('#view-dashboard').innerHTML = `
+    <div class="grid stats">
+      <div class="card stat"><div class="num">${db.kols.length}</div><div class="lbl">Total KOLs (${active.length} active)</div></div>
+      <div class="card stat"><div class="num">${totalDeliv ? Math.round(published / totalDeliv * 100) : 0}%</div><div class="lbl">Content fulfilled (${published}/${totalDeliv} pieces)</div></div>
+      <div class="card stat"><div class="num" style="color:${overdueContent.length ? 'var(--danger)' : 'inherit'}">${overdueContent.length}</div><div class="lbl">Overdue deliverables</div></div>
+      <div class="card stat"><div class="num" style="color:${overdueActions.length ? 'var(--danger)' : 'inherit'}">${actions.length}</div><div class="lbl">Open follow-ups (${overdueActions.length} overdue)</div></div>
+      <div class="card stat"><div class="num">${fmtNum(budget)}</div><div class="lbl">Committed fees</div></div>
+      <div class="card stat"><div class="num">${fmtNum(views)}</div><div class="lbl">Total views on published content</div></div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <h3 style="margin-top:0">KOLs by stage</h3>
+        ${byStage.map(x => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0">
+          <div style="width:120px" class="muted">${esc(x.s)}</div>
+          <div class="bar" style="flex:1;height:10px"><span style="width:${x.n / maxN * 100}%;background:var(--accent)"></span></div>
+          <div style="width:24px;text-align:right">${x.n}</div></div>`).join('')}
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Next follow-ups</h3>
+        ${actions.slice(0, 8).map(a => actionItem(a)).join('') || '<div class="empty">No open follow-ups 🎉</div>'}
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Upcoming content deadlines</h3>
+        ${upcoming.map(c => `<div class="list-item" style="display:flex;justify-content:space-between;gap:8px;cursor:pointer" data-open="${c.kolId}" data-tab="content">
+            <div><b>${esc(kolById(c.kolId)?.name)}</b> · ${esc(c.qty)}× ${esc(c.type)} <span class="muted">(${esc(c.platform)})</span><br><span class="muted">Due ${fmtDate(c.dueDate)}</span></div>
+            <div>${contentPill(c)}</div></div>`).join('') || '<div class="empty">Nothing pending</div>'}
+      </div>
+    </div>`;
+}
+function actionItem(a) {
+  const k = kolById(a.kolId);
+  return `<div class="list-item" style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+    <div style="cursor:pointer" data-open="${a.kolId}" data-tab="discussions">
+      <b>${esc(a.nextAction)}</b><br>
+      <span class="muted">${esc(k?.name)} · due </span><span style="color:${isOverdue(a.nextDue) ? 'var(--danger)' : 'var(--muted)'}">${fmtDate(a.nextDue)}</span>
+    </div>
+    <button class="small" data-done="${a.id}">✓ Done</button></div>`;
+}
+
+// ---------- KOL list ----------
+function uniq(field) { return [...new Set(db.kols.map(k => k[field]).filter(Boolean))].sort(); }
+function filteredKols() {
+  const q = filters.q.toLowerCase();
+  return db.kols.filter(k =>
+    (!q || [k.name, k.handle, k.niche, k.manager, k.campaign].join(' ').toLowerCase().includes(q)) &&
+    (!filters.stage || k.stage === filters.stage) &&
+    (!filters.campaign || k.campaign === filters.campaign) &&
+    (!filters.platform || k.platform === filters.platform));
+}
+function filterBar(withStage = true) {
+  return `<div class="toolbar">
+    <input placeholder="Search name, handle, niche…" data-filter="q" value="${esc(filters.q)}">
+    ${withStage ? `<select data-filter="stage"><option value="">All stages</option>${opts(STAGES, filters.stage)}</select>` : ''}
+    <select data-filter="campaign"><option value="">All campaigns</option>${opts(uniq('campaign'), filters.campaign)}</select>
+    <select data-filter="platform"><option value="">All platforms</option>${opts(PLATFORMS, filters.platform)}</select>
+  </div>`;
+}
+function renderKols() {
+  const rows = filteredKols();
+  $('#view-kols').innerHTML = filterBar() + `<div class="table-wrap card" style="padding:0"><table>
+    <thead><tr><th>KOL</th><th>Platform</th><th>Followers</th><th>Campaign</th><th>Stage</th><th>Content fulfilment</th><th>Last contact</th><th>Fee</th><th>Payment</th></tr></thead>
+    <tbody>${rows.map(k => { const f = fulfilment(k.id); return `<tr class="click" data-open="${k.id}">
+      <td><b>${esc(k.name)}</b><br><span class="muted">${esc(k.handle)}</span></td>
+      <td>${esc(k.platform)}</td><td>${fmtNum(k.followers)}</td><td>${esc(k.campaign) || '—'}</td>
+      <td>${stagePill(k.stage)}</td>
+      <td>${f.total ? `${bar(f.pct)}<span class="muted" style="font-size:12px">${f.done}/${f.total} published</span>` : '<span class="muted">No deliverables</span>'}</td>
+      <td>${fmtDate(lastContact(k.id))}</td>
+      <td>${k.fee ? esc(k.currency) + ' ' + fmtNum(k.fee) : '—'}</td>
+      <td>${esc(k.payment)}</td></tr>`; }).join('') || '<tr><td colspan="9" class="empty">No KOLs match. Click “+ New KOL” to add one.</td></tr>'}</tbody></table></div>`;
+}
+
+// ---------- Pipeline board ----------
+function renderBoard() {
+  const rows = filteredKols();
+  $('#view-board').innerHTML = filterBar(false) + `<p class="muted" style="margin-top:0">Drag cards between columns to update a KOL's stage.</p><div class="board">${STAGES.map(s => {
+    const ks = rows.filter(k => k.stage === s);
+    return `<div class="col" data-stage="${esc(s)}"><h3><span>${esc(s)}</span><span class="muted">${ks.length}</span></h3>
+      ${ks.map(k => { const f = fulfilment(k.id); return `<div class="kcard" draggable="true" data-id="${k.id}" data-open="${k.id}">
+        <b>${esc(k.name)}</b><span class="muted" style="font-size:12px">${esc(k.platform)} · ${esc(k.campaign || 'No campaign')}</span>
+        ${f.total ? `<div style="margin-top:6px">${bar(f.pct)}</div><span class="muted" style="font-size:11px">${f.done}/${f.total} content published</span>` : ''}
+      </div>`; }).join('')}</div>`;
+  }).join('')}</div>`;
+  document.querySelectorAll('.kcard').forEach(c => c.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', c.dataset.id)));
+  document.querySelectorAll('.col').forEach(col => {
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave', () => col.classList.remove('over'));
+    col.addEventListener('drop', e => {
+      e.preventDefault(); col.classList.remove('over');
+      const k = kolById(e.dataTransfer.getData('text/plain'));
+      if (k && k.stage !== col.dataset.stage) { k.stage = col.dataset.stage; save(); render(); }
+    });
+  });
+}
+
+// ---------- Content (all deliverables) ----------
+function renderContent() {
+  const kolIds = new Set(filteredKols().map(k => k.id));
+  const rows = db.content.filter(c => kolIds.has(c.kolId) && (!filters.cstatus || c.status === filters.cstatus))
+    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  $('#view-content').innerHTML = filterBar().replace('</div>', `<select data-filter="cstatus"><option value="">All content status</option>${opts(CONTENT_STATUS, filters.cstatus)}</select></div>`) +
+    `<div class="table-wrap card" style="padding:0"><table>
+    <thead><tr><th>KOL</th><th>Deliverable</th><th>Due</th><th>Status</th><th>Links</th><th>Published</th><th>Views</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead>
+    <tbody>${rows.map(c => `<tr class="click" data-open="${c.kolId}" data-tab="content">
+      <td><b>${esc(kolById(c.kolId)?.name)}</b></td>
+      <td>${esc(c.qty)}× ${esc(c.type)}<br><span class="muted">${esc(c.platform)}</span></td>
+      <td>${fmtDate(c.dueDate)}</td><td>${contentPill(c)}</td>
+      <td>${c.draftLink ? `<a href="${esc(c.draftLink)}" target="_blank" rel="noopener">Draft</a> ` : ''}${c.liveLink ? `<a href="${esc(c.liveLink)}" target="_blank" rel="noopener">Live</a>` : ''}${!c.draftLink && !c.liveLink ? '—' : ''}</td>
+      <td>${fmtDate(c.publishDate)}</td><td>${fmtNum(c.views)}</td><td>${fmtNum(c.likes)}</td><td>${fmtNum(c.comments)}</td><td>${fmtNum(c.shares)}</td></tr>`).join('') || '<tr><td colspan="10" class="empty">No deliverables yet. Open a KOL and add content in the “Content” tab.</td></tr>'}</tbody></table></div>`;
+}
+
+// ---------- Follow-ups ----------
+function renderFollowups() {
+  const actions = openActions();
+  const done = db.discussions.filter(d => d.nextAction && d.done).sort((a, b) => (b.nextDue || '').localeCompare(a.nextDue || '')).slice(0, 20);
+  $('#view-followups').innerHTML = `<div class="grid two">
+    <div class="card"><h3 style="margin-top:0">Open (${actions.length})</h3>${actions.map(actionItem).join('') || '<div class="empty">All caught up</div>'}</div>
+    <div class="card"><h3 style="margin-top:0">Recently completed</h3>${done.map(a => `<div class="list-item"><s>${esc(a.nextAction)}</s><br><span class="muted">${esc(kolById(a.kolId)?.name)} · ${fmtDate(a.nextDue)}</span> <button class="small" data-undone="${a.id}">Reopen</button></div>`).join('') || '<div class="empty">None yet</div>'}</div>
+  </div>`;
+}
+
+// ---------- Global clicks & filters ----------
+document.addEventListener('click', e => {
+  const done = e.target.closest('[data-done]'), undone = e.target.closest('[data-undone]');
+  if (done || undone) {
+    const d = db.discussions.find(x => x.id === (done || undone).dataset[done ? 'done' : 'undone']);
+    if (d) { d.done = !!done; save(); render(); if ($('#dlg').open) refreshDialog(); }
+    return;
+  }
+  const open = e.target.closest('[data-open]');
+  if (open && !$('#dlg').contains(open)) openKol(open.dataset.open, open.dataset.tab);
+});
+document.addEventListener('input', e => {
+  const f = e.target.dataset.filter; if (!f) return;
+  filters[f] = e.target.value;
+  const pos = e.target.selectionStart;
+  render();
+  const el = document.querySelector(`#view-${currentView} [data-filter="${f}"]`);
+  if (el && f === 'q') { el.focus(); el.setSelectionRange(pos, pos); }
+});
+
+// ---------- KOL dialog ----------
+const dlg = $('#dlg');
+let dlgState = { id: null, tab: 'profile', editing: null };
+
+$('#addKol').onclick = () => openKol(null);
+function openKol(id, tab = 'profile') {
+  dlgState = { id, tab: id ? tab : 'profile', editing: null };
+  refreshDialog();
+  if (!dlg.open) dlg.showModal();
+}
+function refreshDialog() {
+  const k = dlgState.id ? kolById(dlgState.id) : null;
+  const tabs = k ? `<div class="tabs">
+      ${[['profile', 'Profile'], ['discussions', `Discussions (${db.discussions.filter(d => d.kolId === k.id).length})`], ['content', `Content (${db.content.filter(c => c.kolId === k.id).length})`]]
+        .map(([t, l]) => `<button data-tab-btn="${t}" class="${dlgState.tab === t ? 'active' : ''}">${l}</button>`).join('')}</div>` : '';
+  let body = '';
+  if (!k || dlgState.tab === 'profile') body = profileForm(k);
+  else if (dlgState.tab === 'discussions') body = discussionsTab(k);
+  else body = contentTab(k);
+  dlg.innerHTML = `<div class="dlg-head"><h2>${k ? esc(k.name) + ' ' + stagePill(k.stage) : 'New KOL'}</h2><button data-close>✕</button></div>
+    <div class="dlg-body">${tabs}${body}</div>`;
+}
+dlg.addEventListener('click', e => {
+  if (e.target === dlg || e.target.closest('[data-close]')) { dlg.close(); return; }
+  const tb = e.target.closest('[data-tab-btn]');
+  if (tb) { dlgState.tab = tb.dataset.tabBtn; dlgState.editing = null; refreshDialog(); return; }
+  const act = e.target.closest('[data-act]');
+  if (act) handleAct(act.dataset.act, act.dataset.id);
+});
+dlg.addEventListener('submit', e => {
+  e.preventDefault();
+  const form = e.target, kind = form.getAttribute('name'), data = Object.fromEntries(new FormData(form));
+  if (kind === 'profile') saveProfile(data);
+  else if (kind === 'discussion') saveRecord('discussions', data);
+  else if (kind === 'content') saveRecord('content', data);
+});
+dlg.addEventListener('close', render);
+
+function field(name, label, val, type = 'text', extra = '') {
+  return `<div ${extra}><label>${label}</label><input name="${name}" type="${type}" value="${esc(val)}"></div>`;
+}
+function sel(name, label, list, val, extra = '') {
+  return `<div ${extra}><label>${label}</label><select name="${name}">${opts(list, val)}</select></div>`;
+}
+
+function profileForm(k) {
+  k = k || { stage: 'Prospect', currency: 'USD', payment: 'Unpaid', platform: 'Instagram', startDate: today() };
+  return `<form name="profile"><div class="grid form">
+    ${field('name', 'Name *', k.name)}
+    ${field('handle', 'Handle / Profile link', k.handle)}
+    ${sel('platform', 'Main platform', PLATFORMS, k.platform)}
+    ${field('followers', 'Followers', k.followers, 'number')}
+    ${field('niche', 'Niche / Category', k.niche)}
+    ${field('campaign', 'Campaign', k.campaign, 'text', '')}
+    ${sel('stage', 'Stage', STAGES, k.stage)}
+    ${field('owner', 'Internal owner (PIC)', k.owner)}
+    ${field('email', 'Email', k.email, 'email')}
+    ${field('phone', 'Phone / WhatsApp', k.phone)}
+    ${field('manager', 'Manager / Agency', k.manager)}
+    ${field('startDate', 'Engagement start', k.startDate, 'date')}
+    ${field('fee', 'Agreed fee', k.fee, 'number')}
+    ${field('currency', 'Currency', k.currency)}
+    ${sel('payment', 'Payment status', PAYMENT_STATUS, k.payment)}
+    <div class="full"><label>Notes</label><textarea name="notes">${esc(k.notes)}</textarea></div>
+  </div>
+  <div class="row-actions">
+    ${k.id ? `<button type="button" class="danger" data-act="delKol" style="margin-right:auto">Delete KOL</button>` : ''}
+    <button type="button" data-close>Cancel</button><button class="primary">Save</button>
+  </div></form>`;
+}
+function saveProfile(data) {
+  if (!data.name.trim()) { alert('Name is required'); return; }
+  data.followers = data.followers === '' ? '' : +data.followers;
+  data.fee = data.fee === '' ? '' : +data.fee;
+  if (dlgState.id) Object.assign(kolById(dlgState.id), data);
+  else { const k = { id: uid(), ...data }; db.kols.push(k); dlgState.id = k.id; }
+  save(); refreshDialog(); render();
+}
+
+function discussionsTab(k) {
+  const list = db.discussions.filter(d => d.kolId === k.id).sort((a, b) => b.date.localeCompare(a.date));
+  const ed = dlgState.editing;
+  return `${ed ? discussionForm(ed === 'new' ? null : db.discussions.find(d => d.id === ed)) : `<button class="primary" data-act="newDisc" style="margin-bottom:14px">+ Log discussion</button>`}
+    <div class="timeline">${list.map(d => `<div class="entry">
+      <div class="meta">${fmtDate(d.date)} · ${esc(d.channel)}
+        <button class="small" data-act="editDisc" data-id="${d.id}">Edit</button>
+        <button class="small danger" data-act="delDisc" data-id="${d.id}">Delete</button></div>
+      <div style="white-space:pre-wrap">${esc(d.summary)}</div>
+      ${d.agreed ? `<div style="margin-top:4px;white-space:pre-wrap"><b>Agreed / decisions:</b> ${esc(d.agreed)}</div>` : ''}
+      ${d.nextAction ? `<div style="margin-top:4px"><b>Next:</b> ${d.done ? `<s>${esc(d.nextAction)}</s> <span class="pill ok">done</span>` : `${esc(d.nextAction)} <span class="pill ${isOverdue(d.nextDue) ? 'bad' : ''}">due ${fmtDate(d.nextDue)}</span> <button class="small" data-done="${d.id}">✓ Done</button>`}</div>` : ''}
+    </div>`).join('') || '<div class="empty">No discussions logged yet.</div>'}</div>`;
+}
+function discussionForm(d) {
+  d = d || { date: today(), channel: 'Call' };
+  return `<form name="discussion" class="card" style="margin-bottom:14px"><input type="hidden" name="id" value="${esc(d.id)}"><div class="grid form">
+    ${field('date', 'Date', d.date, 'date')}
+    ${sel('channel', 'Channel', CHANNELS, d.channel)}
+    <div class="full"><label>Discussion summary *</label><textarea name="summary">${esc(d.summary)}</textarea></div>
+    <div class="full"><label>Agreed points / decisions (deliverables, rates, dates, usage rights…)</label><textarea name="agreed">${esc(d.agreed)}</textarea></div>
+    ${field('nextAction', 'Next action', d.nextAction)}
+    ${field('nextDue', 'Next action due', d.nextDue, 'date')}
+  </div><div class="row-actions"><button type="button" data-act="cancel">Cancel</button><button class="primary">Save</button></div></form>`;
+}
+
+function contentTab(k) {
+  const list = db.content.filter(c => c.kolId === k.id).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  const f = fulfilment(k.id), ed = dlgState.editing;
+  return `<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      ${ed ? '' : `<button class="primary" data-act="newContent">+ Add deliverable</button>`}
+      <div style="flex:1;min-width:200px">${bar(f.pct)}</div><span class="muted">${f.done}/${f.total} published (${f.pct}%)</span></div>
+    ${ed ? contentForm(ed === 'new' ? null : db.content.find(c => c.id === ed), k) : ''}
+    <div class="table-wrap"><table><thead><tr><th>Deliverable</th><th>Due</th><th>Status</th><th>Links</th><th>Views</th><th>Likes</th><th>Comm.</th><th>Shares</th><th></th></tr></thead>
+    <tbody>${list.map(c => `<tr>
+      <td>${esc(c.qty)}× ${esc(c.type)}<br><span class="muted">${esc(c.platform)}</span>${c.notes ? `<br><span class="muted" style="font-size:12px">${esc(c.notes)}</span>` : ''}</td>
+      <td>${fmtDate(c.dueDate)}</td>
+      <td><select data-status="${c.id}" style="width:auto">${opts(CONTENT_STATUS, c.status)}</select><br>${contentPill(c)}</td>
+      <td>${c.draftLink ? `<a href="${esc(c.draftLink)}" target="_blank" rel="noopener">Draft</a> ` : ''}${c.liveLink ? `<a href="${esc(c.liveLink)}" target="_blank" rel="noopener">Live</a>` : ''}</td>
+      <td>${fmtNum(c.views)}</td><td>${fmtNum(c.likes)}</td><td>${fmtNum(c.comments)}</td><td>${fmtNum(c.shares)}</td>
+      <td style="white-space:nowrap"><button class="small" data-act="editContent" data-id="${c.id}">Edit</button> <button class="small danger" data-act="delContent" data-id="${c.id}">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="9" class="empty">No deliverables yet.</td></tr>'}</tbody></table></div>`;
+}
+function contentForm(c, k) {
+  c = c || { type: 'Feed Post', platform: k.platform, qty: 1, status: 'Not Started' };
+  return `<form name="content" class="card" style="margin-bottom:14px"><input type="hidden" name="id" value="${esc(c.id)}"><div class="grid form">
+    ${sel('type', 'Content type', CONTENT_TYPES, c.type)}
+    ${sel('platform', 'Platform', PLATFORMS, c.platform)}
+    ${field('qty', 'Quantity', c.qty, 'number')}
+    ${field('dueDate', 'Due date', c.dueDate, 'date')}
+    ${sel('status', 'Status', CONTENT_STATUS, c.status)}
+    ${field('publishDate', 'Published on', c.publishDate, 'date')}
+    ${field('draftLink', 'Draft link', c.draftLink, 'url')}
+    ${field('liveLink', 'Live post link', c.liveLink, 'url')}
+    ${field('views', 'Views / Reach', c.views, 'number')}
+    ${field('likes', 'Likes', c.likes, 'number')}
+    ${field('comments', 'Comments', c.comments, 'number')}
+    ${field('shares', 'Shares / Saves', c.shares, 'number')}
+    <div class="full"><label>Notes (brief, feedback, revisions)</label><textarea name="notes">${esc(c.notes)}</textarea></div>
+  </div><div class="row-actions"><button type="button" data-act="cancel">Cancel</button><button class="primary">Save</button></div></form>`;
+}
+dlg.addEventListener('change', e => {
+  const id = e.target.dataset.status; if (!id) return;
+  const c = db.content.find(x => x.id === id);
+  c.status = e.target.value;
+  if (c.status === 'Published' && !c.publishDate) c.publishDate = today();
+  save(); refreshDialog();
+});
+
+function saveRecord(coll, data) {
+  if (coll === 'discussions' && !data.summary.trim()) { alert('Summary is required'); return; }
+  if (coll === 'content') {
+    data.qty = +data.qty || 1;
+    if (data.status === 'Published' && !data.publishDate) data.publishDate = today();
+  }
+  if (data.id) Object.assign(db[coll].find(x => x.id === data.id), data);
+  else db[coll].push({ ...data, id: uid(), kolId: dlgState.id, ...(coll === 'discussions' ? { done: false } : {}) });
+  dlgState.editing = null; save(); refreshDialog();
+}
+function handleAct(act, id) {
+  const k = kolById(dlgState.id);
+  switch (act) {
+    case 'cancel': dlgState.editing = null; break;
+    case 'newDisc': case 'newContent': dlgState.editing = 'new'; break;
+    case 'editDisc': case 'editContent': dlgState.editing = id; break;
+    case 'delDisc': if (!confirm('Delete this discussion entry?')) return; db.discussions = db.discussions.filter(d => d.id !== id); save(); break;
+    case 'delContent': if (!confirm('Delete this deliverable?')) return; db.content = db.content.filter(c => c.id !== id); save(); break;
+    case 'delKol':
+      if (!confirm(`Delete ${k.name} and all their discussions and content?`)) return;
+      db.kols = db.kols.filter(x => x.id !== k.id);
+      db.discussions = db.discussions.filter(d => d.kolId !== k.id);
+      db.content = db.content.filter(c => c.kolId !== k.id);
+      save(); dlg.close(); return;
+  }
+  refreshDialog();
+}
+
+// ---------- Import / Export ----------
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+$('#exportJson').onclick = () => download(`kol-tracker-backup-${today()}.json`, JSON.stringify(db, null, 2), 'application/json');
+$('#importJson').onclick = () => $('#importFile').click();
+$('#importFile').onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.kols) || !Array.isArray(data.discussions) || !Array.isArray(data.content)) throw new Error('Not a KOL Tracker backup file');
+    if (!confirm('Replace all current data with this backup?')) return;
+    db = data; save(); render();
+  } catch (err) { alert('Import failed: ' + err.message); }
+  e.target.value = '';
+};
+function toCsv(rows, cols) {
+  const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  return [cols.map(c => cell(c[0])).join(','), ...rows.map(r => cols.map(c => cell(c[1](r))).join(','))].join('\n');
+}
+$('#exportCsv').onclick = () => {
+  download(`kols-${today()}.csv`, toCsv(db.kols, [
+    ['Name', k => k.name], ['Handle', k => k.handle], ['Platform', k => k.platform], ['Followers', k => k.followers],
+    ['Niche', k => k.niche], ['Campaign', k => k.campaign], ['Stage', k => k.stage], ['Owner', k => k.owner],
+    ['Email', k => k.email], ['Phone', k => k.phone], ['Manager', k => k.manager], ['Fee', k => k.fee], ['Currency', k => k.currency],
+    ['Payment', k => k.payment], ['Content published', k => fulfilment(k.id).done], ['Content total', k => fulfilment(k.id).total],
+    ['Last contact', k => lastContact(k.id)], ['Notes', k => k.notes]]), 'text/csv');
+  setTimeout(() => download(`kol-content-${today()}.csv`, toCsv(db.content, [
+    ['KOL', c => kolById(c.kolId)?.name], ['Type', c => c.type], ['Platform', c => c.platform], ['Qty', c => c.qty],
+    ['Due', c => c.dueDate], ['Status', c => c.status], ['Published on', c => c.publishDate], ['Draft link', c => c.draftLink],
+    ['Live link', c => c.liveLink], ['Views', c => c.views], ['Likes', c => c.likes], ['Comments', c => c.comments],
+    ['Shares', c => c.shares], ['Notes', c => c.notes]]), 'text/csv'), 300);
+  setTimeout(() => download(`kol-discussions-${today()}.csv`, toCsv(db.discussions, [
+    ['KOL', d => kolById(d.kolId)?.name], ['Date', d => d.date], ['Channel', d => d.channel], ['Summary', d => d.summary],
+    ['Agreed', d => d.agreed], ['Next action', d => d.nextAction], ['Due', d => d.nextDue], ['Done', d => d.done ? 'Yes' : 'No']]), 'text/csv'), 600);
+};
+
+render();
+</script>
+</body>
+</html>
