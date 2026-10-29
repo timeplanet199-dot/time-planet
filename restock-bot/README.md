@@ -7,7 +7,7 @@ A Google Apps Script (one file, `dist/RestockBot.gs`) that runs every day at 8pm
    [big seller data](https://drive.google.com/drive/folders/1tdwYVsuQuVRD8qHKei0CJzLNQz5HY22m) and
    [Shopee](https://drive.google.com/drive/folders/1vSfwEKhJJrid3O3UUQNva8TcdoUUYK58).
 3. Works out the restock plan with the same rules as `scripts/restock.py` (the 77 tiered Bonia SKUs) and
-   `scripts/allplan.py` (all other SKUs). See the handover doc, sections 6.1–6.2.
+   `scripts/allplan.py` (all other SKUs), plus the campaign rule below. See the handover doc, sections 6.1–6.2.
 4. The **Stock manager** bot posts it to the group:
    - totals, and order / move / urgent counts per brand;
    - **Reminder 1:** the top 20 urgent SKUs to order;
@@ -65,17 +65,39 @@ node restock-bot/test/test_appscript.js /tmp/restock-test
 `test_appscript.js` runs `dist/RestockBot.gs` with fake Drive, Sheets and Telegram services. It covers `start()`, the
 token read from the access doc, the trigger, both reminders, temp-sheet clean-up and the cache.
 
+`test_logic.js` turns the campaign rule off for the Python comparison and tests it separately.
+
 Last result (29 Oct 2026):
 - Bonia 77: identical to `restock.py` (order 499).
 - 598 other SKUs: identical to `allplan.py`.
 - Code matching: identical to `allbrand.py`.
 
+## Campaign rule (added 29 Oct 2026, confirmed by the user)
+
+TikTok campaigns change how many units a SKU needs. The effect is measured as "extra normal days of sales" per campaign:
+the median of the last 6 occurrences in the 56 TikTok weekly BigSeller reports, Oct 2025 to Oct 2026, each week compared
+with the 4 nearest weeks that had no campaign. This is my own method: low confidence, preliminary.
+
+| Campaign | Days counted | Bonia | Casio (incl. G-Shock, Baby-G) | Bilano Polo | Other brands |
+|---|---|---|---|---|---|
+| Double date n.n (11.11 and 12.12 included) | the 7 days up to it; 1.1 = 1–7 Jan | 3.0 | 2.2 | 4.3 | 3.5 |
+| Payday | 25th–28th, Jan–Nov | 2.5 | 1.0 | 0 | 2.4 |
+| Year-end | 21–31 Dec | 0 | 0 | 11.6 | 0 |
+
+CNY, Hari Raya, Deepavali and Merdeka showed no spike and are not counted.
+- **Sales window:** campaign extra days on the days the sales files cover are added to the covered days, so campaign
+  sales do not count as normal daily sales.
+- **Cover window:** campaign extra days that fall in a SKU's lead + cycle days from tomorrow are added to its target
+  (for example, Bilano Polo's 82 days from 29 Oct cover 11.11, 12.12, year-end and 1.1).
+- The report lists the campaigns it added. The values are at the top of `Logic.gs` (`CAMPAIGN_DAYS`), and
+  `CAMPAIGNS_ON = false` turns the rule off.
+- Shopee is assumed to follow the TikTok pattern; this has not been checked.
+
 ## Known limits
 
 - **Not counted:**
   - stock already on order (open POs);
-  - outlet walk-in sales;
-  - the 11.11 campaign uplift.
+  - outlet walk-in sales.
 
   The report says so.
 - **Overstock rule:** for brands other than the 77 Bonia SKUs, it follows the Stock Analysis sheet (handover 6.2), not

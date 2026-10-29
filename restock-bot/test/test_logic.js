@@ -6,6 +6,7 @@ const ctx = vm.createContext({console});
 vm.runInContext(fs.readFileSync(path.join(here, 'Data.gs'), 'utf8') + '\n' +
   fs.readFileSync(path.join(here, 'Logic.gs'), 'utf8'), ctx);
 const L = (expr) => vm.runInContext(expr, ctx);
+L('CAMPAIGNS_ON = false');   // the Python scripts have no campaign rule; section 5 tests it
 const fx = JSON.parse(fs.readFileSync(path.join(dir, 'fixtures.json'), 'utf8'));
 ctx.fx = fx;
 let bad = 0;
@@ -57,6 +58,20 @@ check('u24 TikTok pro rata', sr.u24.TikTok.get('X'), 125);
 check('cov24 TikTok', sr.cov24.TikTok, 13);
 check('rate mixed coverage', L('rate')({TikTok: 75, Shopee: 3}, sr.cov14), 75 / 8 + 3);
 console.log('Sales file selection checked');
+
+// 5) campaign rule
+L('CAMPAIGNS_ON = true');
+const near = (x, y) => Math.abs(x - y) < 1e-9;
+const c11 = L(`campaigns(dayNum('2026-11-01'), dayNum('2026-11-30'))`).map(c => [c.name, L(`dayStr(${c.a})`), L(`dayStr(${c.b})`)]);
+check('Nov campaigns', c11, [['11.11', '2026-11-05', '2026-11-11'], ['Nov payday', '2026-11-25', '2026-11-28']]);
+const oct = L(`days(dayNum('2026-10-15'), 14)`);
+check('payday out of Bonia rate', near(L('rate')({TikTok: 165}, {TikTok: 14}, {TikTok: L('campaignExtra')('BONI', oct)}), 165 / 16.5), true);
+check('Bonia cover 29 Oct', near(L(`planBonia('X', 'Steady', 1, 1, 0, 0, dayNum('2026-10-29')).camp`), 3.0 * 3 / 7), true);
+const bpc = L(`planOther({code: 'P', brand: 'BPC', eco: 0, hq: 0, shops: 0}, 1, dayNum('2026-10-29'))`);
+check('BPC cover 29 Oct-18 Jan', near(bpc.camp, 4.3 * 3 + 11.6), true);   // 11.11, 12.12, 1.1, year-end; payday 0
+check('BPC target', bpc.target, Math.ceil(82 + bpc.camp + Math.ceil(0.44 * Math.sqrt(82 + bpc.camp))));
+check('off means no change', L(`CAMPAIGNS_ON = false, planOther({code: 'P', brand: 'BPC', eco: 0, hq: 0, shops: 0}, 1, dayNum('2026-10-29')).camp`), 0);
+console.log('Campaign rule checked');
 
 // 4) the message renders and fits Telegram
 const msg = L(`formatReport(buildPlan(fx.stock, fx.bonia.map(parseSales).concat(fx.other.map(parseSales)), dayNum('2026-10-24')),

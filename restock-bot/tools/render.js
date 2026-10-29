@@ -28,7 +28,7 @@ if (rest.length) brands.push({name: `Others (${rest.length})`, order: rest.reduc
   move: rest.reduce((t, b) => t + b.move, 0), urgent: rest.reduce((t, b) => t + b.urgent, 0)});
 const brandRows = brands.map((b) => `<tr><td>${esc(b.name)}</td><td class="num strong">${n(b.order)}</td>
   <td class="num">${n(b.move)}</td><td class="num">${b.urgent}</td></tr>`).join('');
-const icon = {critical: '<span class="ico crit">●</span>', serious: '<span class="ico ser">▲</span>'};
+const icon = {critical: '<span class="ico crit">●</span>', serious: '<span class="ico ser">▲</span>', info: '<span class="ico info">◆</span>'};
 const attention = S.attention.map((a) => `<li>${icon[a.level] || ''}<span>${esc(a.text)}</span></li>`).join('');
 const warnings = S.warnings.length ? `<div class="warn"><div class="wt">⚠ Data check</div><ul>${S.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '';
 
@@ -51,7 +51,7 @@ ul{list-style:none}
 .att li{display:flex;gap:10px;font-size:14.5px;line-height:1.45;padding:6px 0}
 .att li+li{border-top:1px solid var(--grid)}
 .ico{flex:none;font-size:12px;line-height:21px}
-.ico.crit{color:var(--crit)}.ico.ser{color:var(--ser)}
+.ico.crit{color:var(--crit)}.ico.ser{color:var(--ser)}.ico.info{color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
   padding:0 8px 8px;border-bottom:1px solid var(--grid)}
