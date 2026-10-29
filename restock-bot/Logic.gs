@@ -102,9 +102,13 @@ function rate(units, cov) {
   return ps.reduce(function (t, p) { return t + (units[p] || 0) / cov[p]; }, 0);
 }
 
-// Sales code -> stock key (allbrand.py match())
+// Sales codes that differ from the stock code, confirmed by the user (handover 6.2)
+var ALIASES = [[/^LA-7225SRG-/, 'LD-L7225RG']];
+
+// Sales code -> stock key (allbrand.py match(), plus ALIASES)
 function matchCode(s, stock) {
   if (stock.has(s)) return s;
+  for (var a = 0; a < ALIASES.length; a++) if (ALIASES[a][0].test(s) && stock.has(ALIASES[a][1])) return ALIASES[a][1];
   if (s.indexOf('BNB') === 0) return null;
   var sufs = ['UDF', 'DF', 'D'];
   for (var i = 0; i < sufs.length; i++) if (stock.has(s + sufs[i])) return s + sufs[i];
