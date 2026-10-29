@@ -5,14 +5,14 @@
 #   --sales   read_file_content of BigSeller Sales Report files (JSON with fileContent)
 # The Stock manager bot token comes from the environment variable TG_TOKEN.
 # Usage: python3 restock-bot/tools/nightly.py --stock F --stock-title "TPSB 29/10.xlsx" --sales F1 F2 ... [--skipped "..."] [--send]
-import argparse, base64, datetime, json, os, re, subprocess, sys, tempfile, uuid, urllib.parse, urllib.request
+import argparse, base64, datetime, json, os, re, subprocess, sys, tempfile, uuid, urllib.error, urllib.parse, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path[:0] = [HERE, os.path.join(ROOT, 'scripts')]
 from text2rows import rows as text_rows
 from xl import read
 
-GROUP = '-5365161027'   # Time Planet Operation
+GROUP = '-1003982318607'   # Time Planet Operation (supergroup since 29 Oct 2026; was -5365161027)
 SHEET = 'https://docs.google.com/spreadsheets/d/1cc-NC3740UwtJ3JnrOHYe94p09382vAZrUvkxTIs3-w/edit'
 MYT = datetime.timezone(datetime.timedelta(hours=8))
 
@@ -24,17 +24,24 @@ def title_day(title, today):
     d = datetime.date(today.year, int(m.group(2)), int(m.group(1)))
     return d if d <= today + datetime.timedelta(days=1) else d.replace(year=today.year - 1)
 
+# Telegram call -> result; on an error, raise with Telegram's description (never the URL, it holds the token)
+def tg(token, method, data, headers={}):
+    try:
+        r = json.load(urllib.request.urlopen(urllib.request.Request(
+            f'https://api.telegram.org/bot{token}/{method}', data=data, headers=headers), timeout=60))
+    except urllib.error.HTTPError as e:
+        r = json.loads(e.read() or b'{}')
+    if not r.get('ok'): raise RuntimeError('Telegram %s: %s' % (method, r.get('description')))
+    return r['result']
+
 def send_photo(token, png, caption):
     b = uuid.uuid4().hex
     parts = [('chat_id', GROUP), ('caption', caption), ('parse_mode', 'HTML')]
     body = b''.join(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode() for k, v in parts)
     body += (f'--{b}\r\nContent-Disposition: form-data; name="photo"; filename="restock.png"\r\n'
              'Content-Type: image/png\r\n\r\n').encode() + open(png, 'rb').read() + f'\r\n--{b}--\r\n'.encode()
-    req = urllib.request.Request(f'https://api.telegram.org/bot{token}/sendPhoto', data=body,
-                                 headers={'Content-Type': f'multipart/form-data; boundary={b}'})
-    r = json.load(urllib.request.urlopen(req, timeout=60))
-    if not r.get('ok'): raise RuntimeError('Telegram: %s' % r.get('description'))
-    print('sent photo', r['result']['message_id'])
+    r = tg(token, 'sendPhoto', body, {'Content-Type': f'multipart/form-data; boundary={b}'})
+    print('sent photo', r['message_id'])
 
 def caption(v):
     t = v['totals']
@@ -52,9 +59,7 @@ def send(token, text):
         cut = len(text) if len(text) <= 4000 else text.rindex('\n', 0, 4000)
         data = urllib.parse.urlencode({'chat_id': GROUP, 'text': text[:cut], 'parse_mode': 'HTML',
                                        'disable_web_page_preview': 'true'}).encode()
-        r = json.load(urllib.request.urlopen(f'https://api.telegram.org/bot{token}/sendMessage', data=data, timeout=30))
-        if not r.get('ok'): raise RuntimeError('Telegram: %s' % r.get('description'))
-        print('sent message', r['result']['message_id'])
+        print('sent message', tg(token, 'sendMessage', data)['message_id'])
         text = text[cut:].lstrip('\n')
 
 def main():
@@ -96,8 +101,10 @@ def main():
     if a.send:
         token = os.environ.get('TG_TOKEN')
         if not token: raise SystemExit('TG_TOKEN is not set')
-        if png: send_photo(token, png, caption(view))
-        else: send(token, html)
+        if png:
+            try: return send_photo(token, png, caption(view))
+            except RuntimeError as e: print('photo not sent, sending text instead:', e)
+        send(token, html)
 
 if __name__ == '__main__':
     main()
