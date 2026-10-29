@@ -1,0 +1,13 @@
+# Business data stays on Drive
+scripts/data/
+# Script outputs
+scripts/*.pkl
+scripts/*.png
+scripts/*_live_commission_*.xlsx
+scripts/Live_host_commission_*.xlsx
+scripts/allbrand.json
+scripts/allplan.json
+scripts/dead.json
+scripts/restock28.json
+scripts/weeks.json
+__pycache__/
