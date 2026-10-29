@@ -2,24 +2,34 @@
 // Runs every day at 8pm Malaysia time (setup() creates the trigger).
 // Reads the newest TPSB stock file and the BigSeller sales reports from Drive,
 // works out the restock plan (Logic.gs) and the Stock manager bot posts it.
-// Script properties (Project Settings -> Script properties):
-//   TG_TOKEN    Stock manager bot token, from the "access" doc. Never put it in code.
-//   TG_CHAT_ID  the group's chat id. findChats() fills it in.
+// The Stock manager bot token is read from the "access" doc at run time (or from the
+// script property TG_TOKEN if set). Never put it in code.
+// Script property TG_CHAT_ID holds the group's chat id; findChats() fills it in.
 
 var STOCK_FOLDER = '1ePcVVTswJ_n520Avw1EwRpUjOVsga44M';   // STOCK REPORT FILE
 var SALES_FOLDERS = ['1tdwYVsuQuVRD8qHKei0CJzLNQz5HY22m',  // big seller data (TikTok)
                      '1vSfwEKhJJrid3O3UUQNva8TcdoUUYK58']; // Shopee
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1cc-NC3740UwtJ3JnrOHYe94p09382vAZrUvkxTIs3-w/edit';
+var ACCESS_DOC = '1o6kk_61Au53DkF2_FI3e-M3OVw0Of2gqrtej7OgFOyQ';  // "access" doc in REPORT
 var TZ = 'Asia/Kuala_Lumpur';
 var MONTHS = {JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6, JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12};
 
 // ---- run once ----
 
+// One-click setup: finds the operation group, posts today's report there and
+// turns on the daily 8pm run. Add the Stock manager bot to the group first.
+function start() {
+  if (!PropertiesService.getScriptProperties().getProperty('TG_CHAT_ID')) findChats();
+  if (!PropertiesService.getScriptProperties().getProperty('TG_CHAT_ID'))
+    throw new Error('Operation group not found: add the Stock manager bot to the group, send a message there, then run start again.');
+  setup();
+  dailyRestockReport();
+  Logger.log('Done: report posted, daily 8pm run is on.');
+}
+
 // Creates the daily 8pm trigger (Apps Script runs it between 8:00 and 8:15pm).
 function setup() {
-  var p = PropertiesService.getScriptProperties();
-  if (!p.getProperty('TG_TOKEN')) throw new Error('Add the script property TG_TOKEN first (Stock manager bot token).');
-  if (!p.getProperty('TG_CHAT_ID')) throw new Error('Run findChats() first to save the group chat id.');
+  if (!PropertiesService.getScriptProperties().getProperty('TG_CHAT_ID')) throw new Error('Run findChats() first to save the group chat id.');
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'dailyRestockReport') ScriptApp.deleteTrigger(t);
   });
@@ -146,12 +156,22 @@ function unpack(s) {
 
 // xlsx -> rows of the first sheet, via a temporary Google Sheet copy
 function readRows(file) {
-  var tmp = Drive.Files.copy({name: 'tmp restock ' + file.getName(), mimeType: MimeType.GOOGLE_SHEETS}, file.getId());
+  var tmp = driveApi('post', 'files/' + file.getId() + '/copy',
+    {name: 'tmp restock ' + file.getName(), mimeType: 'application/vnd.google-apps.spreadsheet'});
   try {
     return SpreadsheetApp.openById(tmp.id).getSheets()[0].getDataRange().getDisplayValues();
   } finally {
-    Drive.Files.remove(tmp.id);
+    driveApi('delete', 'files/' + tmp.id);
   }
+}
+
+// Drive REST API with the script's own sign-in (no advanced service to switch on)
+function driveApi(method, path, body) {
+  var opt = {method: method, headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true};
+  if (body) { opt.contentType = 'application/json'; opt.payload = JSON.stringify(body); }
+  var r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + path, opt);
+  if (r.getResponseCode() >= 300) throw new Error('Drive ' + method + ' ' + path + ': ' + r.getContentText().slice(0, 200));
+  return r.getContentText() ? JSON.parse(r.getContentText()) : null;
 }
 
 // ---- Telegram ----
@@ -166,10 +186,18 @@ function send(text) {
   }
 }
 
+// Stock manager bot token: script property TG_TOKEN, else the line after "Stock manager" in the access doc
+function token() {
+  var t = PropertiesService.getScriptProperties().getProperty('TG_TOKEN');
+  if (t) return t;
+  var m = DocumentApp.openById(ACCESS_DOC).getBody().getText().match(/Stock manager\s+(\d+:[A-Za-z0-9_-]+)/i);
+  if (!m) throw new Error('Stock manager token not found in the access doc.');
+  return m[1];
+}
+
 function tg(method, payload) {
-  var token = PropertiesService.getScriptProperties().getProperty('TG_TOKEN');
-  if (!token) throw new Error('Script property TG_TOKEN is missing.');
-  var r = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + method,
+  var token_ = token();
+  var r = UrlFetchApp.fetch('https://api.telegram.org/bot' + token_ + '/' + method,
     {method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true});
   var body = JSON.parse(r.getContentText());
   if (!body.ok) throw new Error('Telegram ' + method + ': ' + body.description);

@@ -1,6 +1,6 @@
 # Restock bot: daily 8pm report in the Time Planet operation group
 
-A Google Apps Script that runs every day at 8pm Malaysia time. Each run, it:
+A Google Apps Script (one file, `dist/RestockBot.gs`) that runs every day at 8pm Malaysia time. Each run, it:
 1. Takes the newest **TPSB dd/mm** stock file from
    [STOCK REPORT FILE](https://drive.google.com/drive/folders/1ePcVVTswJ_n520Avw1EwRpUjOVsga44M).
 2. Takes the BigSeller daily (`dd/mm TIKTOK`, `dd/mm SHOPEE`) and weekly (`TIKTOK OCT26 WEEK 3` …) sales reports from
@@ -18,38 +18,31 @@ Sales window: the 14 days up to yesterday (24 days for the "Sold-out best seller
 and daily files fill the rest; no day is counted twice. If days are missing, the report says so and the daily rates
 use only the days found.
 
-## Setup (once, about 10 minutes, signed in as timeplanet199@gmail.com)
+## Setup (once, about 3 minutes, on a computer, signed in as timeplanet199@gmail.com)
 
-1. Go to [script.google.com](https://script.google.com) → **New project**. Name it "Time Planet restock bot".
-2. Click **Project Settings** (gear icon):
-   - tick **Show "appsscript.json" manifest file in editor**;
-   - set the time zone to **(GMT+08:00) Kuala Lumpur**.
-3. In the **Editor**:
-   - replace `appsscript.json` with this folder's `appsscript.json`;
-   - rename `Code.gs` if needed and paste this folder's `Code.gs` into it;
-   - add two more script files, `Logic` and `Data`, and paste `Logic.gs` and `Data.gs` into them.
-4. **Project Settings → Script properties → Add script property**:
-   - name `TG_TOKEN`;
-   - value: the **Stock manager** token from the
-     ["access" doc](https://docs.google.com/document/d/1o6kk_61Au53DkF2_FI3e-M3OVw0Of2gqrtej7OgFOyQ/edit).
+1. In Telegram, add the **Stock manager** bot to the **Time Planet operation group**, then send any message in the group.
+2. Open [script.google.com](https://script.google.com) and click **New project**.
+3. Delete the sample code. Open [dist/RestockBot.gs](https://github.com/timeplanet199-dot/time-planet/blob/claude/amazing-knuth-twg7ei/restock-bot/dist/RestockBot.gs),
+   click **Copy raw file** (top right of the code), paste it into the editor and press **Save** (Ctrl+S).
+4. In the function list at the top of the editor, pick **start**, then click **Run**:
+   - Google asks for permission once. Click Review permissions, choose the account, then Advanced → "Go to … (unsafe)", then Allow.
+     It is your own script.
+   - `start` finds the group, posts today's report there and turns on the daily 8pm run (8:00–8:15pm).
 
-   Never paste the token into the code or a chat.
-5. In Telegram, add the Stock manager bot to the **Time Planet operation group** and send any message in the group.
-6. In the Editor, pick `findChats` in the function list and click **Run**:
-   - Google asks for permission. Click Advanced → "Go to Time Planet restock bot", then Allow.
-   - The log should say `Saved TG_CHAT_ID = -100…`. If it lists several groups instead, add `TG_CHAT_ID` by hand in
-     Script properties.
-7. Run `previewReport` and read the report in the log. Nothing is sent.
-8. Run `setup`. This creates the daily trigger. Apps Script runs it between 8:00 and 8:15pm.
-9. Optional: run `dailyRestockReport` once to post a report to the group now.
+There is no token to paste. The script reads the Stock manager token from the
+["access" doc](https://docs.google.com/document/d/1o6kk_61Au53DkF2_FI3e-M3OVw0Of2gqrtej7OgFOyQ/edit) each run. Keep the
+token on the line after "Stock manager" in that doc.
 
-If a run fails, the bot posts "Restock report failed" with the reason. You can see past runs under **Executions**.
+If `start` says the group was not found, send another message in the group and run `start` again.
+If a nightly run fails, the bot posts "Restock report failed" with the reason. Past runs are under **Executions**.
+To check the report without sending it, run `previewReport` and open the log.
 
 ## Updating
 
-- **Code changes:** edit the files here, then paste them into the Apps Script project again.
+The source is split into `Code.gs` (Drive, Telegram, trigger), `Logic.gs` (calculation) and `Data.gs` (generated).
+After any change, rebuild the single file with `python3 restock-bot/tools/build.py` and paste `dist/RestockBot.gs` again.
 - **Tiers or unit costs:** edit `scripts/sheet26.csv` or `scripts/unitcost.json`, then run
-  `python3 restock-bot/tools/make_data.py` from the repo root and paste the new `Data.gs`.
+  `python3 restock-bot/tools/make_data.py` before the build.
 - **Rule values** (lead times, days to keep, …): they are at the top of `Logic.gs`.
 
 ## Test
@@ -64,6 +57,13 @@ python3 restock-bot/test/make_fixtures.py /tmp/restock-test
 ```bash
 node restock-bot/test/test_logic.js /tmp/restock-test
 ```
+
+```bash
+node restock-bot/test/test_appscript.js /tmp/restock-test
+```
+
+`test_appscript.js` runs `dist/RestockBot.gs` with fake Drive, Sheets and Telegram services. It covers `start()`, the
+token read from the access doc, the trigger, both reminders, temp-sheet clean-up and the cache.
 
 Last result (29 Oct 2026):
 - Bonia 77: identical to `restock.py` (order 499).
