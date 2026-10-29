@@ -81,3 +81,27 @@ Last result (29 Oct 2026):
 - **Overstock rule:** for brands other than the 77 Bonia SKUs, it follows the Stock Analysis sheet (handover 6.2), not
   `allplan.py`'s plain 8-week rule. Order and move quantities are the same either way.
 - **Tiered Bonia SKU with no sales in 14 days but low stock:** shown as "Later". `restock.py` has no case for this.
+
+## Nightly Claude run (what runs now)
+
+A scheduled Claude task, "Daily restock report 8pm", runs every day at 7:39pm Malaysia time, so the report lands before 8pm.
+- It fetches the newest TPSB file and the BigSeller reports with the Google Drive connector.
+- It runs `tools/nightly.py`, which posts the report to **Time Planet Operation** as the Stock manager bot.
+
+The report is an image:
+- headline numbers;
+- "What needs your attention";
+- the top 12 urgent SKUs, fastest sellers first;
+- a brand table;
+- a data check.
+
+It's rendered by `tools/render.js` (Playwright) and sent with a short caption. If rendering fails, the text version is sent.
+
+The task needs the **Google Drive connector** attached in the claude.ai routines UI. It reads the token from the access doc
+each run and passes it only as `TG_TOKEN`.
+
+Preview without sending:
+
+```bash
+python3 restock-bot/tools/nightly.py --stock <download .txt> --stock-title "TPSB dd/mm.xlsx" --sales <read_file_content .txt files>
+```

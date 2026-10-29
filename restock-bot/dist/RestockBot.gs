@@ -472,6 +472,41 @@ function formatReport(plan, meta) {
   return L.join('\n');
 }
 
+// Structured summary for the report image (tools/render.js): totals, attention points,
+// the action list (urgent SKUs, fastest sellers first), brands and data warnings.
+// meta: {today, stockTitle, stockDay, skipped: [titles]}
+function summarize(plan, meta) {
+  var rows = plan.rows, by = {}, t = {order: 0, move: 0, urgent: 0, out: 0, cost: 0, noCost: 0};
+  rows.forEach(function (r) {
+    var b = by[r.brand] = by[r.brand] || {name: brandName(r.brand), order: 0, move: 0, urgent: 0};
+    b.order += r.order; b.move += r.xfer; t.order += r.order; t.move += r.xfer;
+    if (r.pri === 'Urgent') { b.urgent++; t.urgent++; if (r.eco <= 0) t.out++; }
+    if (r.brand === 'BONI' && r.order > 0) { if (UNIT_COST[r.code] !== undefined) t.cost += r.order * UNIT_COST[r.code]; else t.noCost++; }
+  });
+  var brands = Object.keys(by).map(function (k) { return by[k]; }).filter(function (b) { return b.order || b.move || b.urgent; })
+    .sort(function (x, y) { return y.order - x.order || y.move - x.move; });
+  var actions = rows.filter(function (r) { return r.pri === 'Urgent' && (r.order > 0 || r.xfer > 0); })
+    .sort(function (x, y) { return y.daily - x.daily; })
+    .map(function (r) { return {code: r.code, brand: brandName(r.brand), eco: r.eco, daily: r.daily, left: r.left, move: r.xfer, order: r.order, missing: !!r.missing}; });
+  var fastOut = actions.filter(function (a) { return a.eco <= 0 && a.daily >= 1; });
+  var attention = [];
+  if (fastOut.length) attention.push({level: 'critical', text: fastOut.length + ' fast sellers (1+ a day) are out of stock online: ' +
+    fastOut.slice(0, 3).map(function (a) { return a.code; }).join(', ') + (fastOut.length > 3 ? ' and more' : '') + '. Move or order today.'});
+  if (t.move) attention.push({level: 'serious', text: fmt(t.move) + ' units can be moved from outlets/HQ to online first. That costs nothing and is faster than ordering.'});
+  if (t.order) attention.push({level: 'serious', text: 'Order ' + fmt(t.order) + ' units from suppliers' +
+    (t.cost ? ' (Bonia about RM ' + fmt(t.cost) + ' at cost)' : '') + '. Check open purchase orders first, they are not counted.'});
+  var warnings = [];
+  if (meta.stockDay !== meta.today) warnings.push('Stock report for ' + dm(meta.today) + ' is not uploaded yet. Stock manager, please upload TPSB ' +
+    dm(meta.today) + '. This report uses ' + meta.stockTitle + '.');
+  var low = Object.keys(plan.cov14).sort().filter(function (p) { return plan.cov14[p] < 14; });
+  if (low.length) warnings.push('Sales days found: ' + low.map(function (p) { return p + ' ' + plan.cov14[p] + ' of 14'; }).join(', ') +
+    '. Daily rates use the days found.');
+  if (meta.skipped && meta.skipped.length) warnings.push('Not loaded: ' + meta.skipped.join(', ') + '.');
+  return {date: dayStr(meta.today), stockTitle: meta.stockTitle, salesFrom: dm(plan.start14), salesTo: dm(plan.end),
+    cov14: plan.cov14, totals: t, brands: brands, actions: actions, attention: attention, warnings: warnings,
+    matchedPct: plan.units ? Math.round(100 * plan.matched / plan.units) : null};
+}
+
 if (typeof module !== 'undefined') module.exports = {parseStock: parseStock, parseSales: parseSales, salesRates: salesRates,
   matchCode: matchCode, planBonia: planBonia, planOther: planOther, buildPlan: buildPlan, formatReport: formatReport,
   dayNum: dayNum, norm: norm};
